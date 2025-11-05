@@ -10,6 +10,8 @@ from .admin_client import AdminAPI, DEFAULT_TENANT
 if TYPE_CHECKING:
     from .collection import Collection
     from .database import Database
+else:
+    from .collection import Collection  # Import for runtime use
 
 
 class ClientAPI(ABC):
@@ -68,13 +70,12 @@ class BaseClient(BaseConnection, AdminAPI):
     
     # ==================== Collection Management (User-facing) ====================
     
-    @abstractmethod
     def create_collection(
         self,
         name: str,
         dimension: Optional[int] = None,
         **kwargs
-    ) -> "Collection":
+    ) -> Collection:
         """
         Create a collection (user-facing API)
         
@@ -86,7 +87,27 @@ class BaseClient(BaseConnection, AdminAPI):
         Returns:
             Collection object
         """
-        pass
+        if dimension is None:
+            raise ValueError("dimension parameter is required for creating a collection")
+        
+        # Construct table name: c$v1${name}
+        table_name = f"c$v1{name}"
+        
+        # Construct CREATE TABLE SQL statement
+        sql = f"""CREATE TABLE `{table_name}` (
+            _id bigint PRIMARY KEY NOT NULL AUTO_INCREMENT,
+            document string,
+            embedding vector({dimension}),
+            metadata json,
+            FULLTEXT INDEX idx1(document),
+            VECTOR INDEX idx2 (embedding) with(distance=l2, type=hnsw, lib=vsag)
+        );"""
+        
+        # Execute SQL to create table
+        self.execute(sql)
+        
+        # Create and return Collection object
+        return Collection(client=self, name=name, dimension=dimension, **kwargs)
     
     @abstractmethod
     def get_collection(self, name: str) -> "Collection":

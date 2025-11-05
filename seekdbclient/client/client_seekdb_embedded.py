@@ -137,7 +137,11 @@ class SeekdbEmbeddedClient(BaseClient):
         try:
             cursor.execute(sql)
             
-            if sql.strip().upper().startswith('SELECT') or sql.strip().upper().startswith('SHOW'):
+            sql_upper = sql.strip().upper()
+            if (sql_upper.startswith('SELECT') or 
+                sql_upper.startswith('SHOW') or 
+                sql_upper.startswith('DESCRIBE') or
+                sql_upper.startswith('DESC')):
                 return cursor.fetchall()
             
             if not self.autocommit:
@@ -159,17 +163,7 @@ class SeekdbEmbeddedClient(BaseClient):
     
     # ==================== Collection Management (framework) ====================
     
-    def create_collection(
-        self,
-        name: str,
-        dimension: Optional[int] = None,
-        **kwargs
-    ) -> Collection:
-        """Create collection"""
-        logger.info(f"SeekdbEmbeddedClient: create_collection framework for {name} (dim={dimension})")
-        # TODO: implement seekdb create_collection logic
-        # Return Collection object after creating table
-        return Collection(client=self, name=name, dimension=dimension, **kwargs)
+    # create_collection is inherited from BaseClient - no override needed
     
     def get_collection(self, name: str) -> Collection:
         """Get collection object"""

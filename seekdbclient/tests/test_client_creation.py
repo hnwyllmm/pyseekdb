@@ -5,6 +5,7 @@ Supports configuring connection parameters via environment variables
 import pytest
 import sys
 import os
+import time
 from pathlib import Path
 
 # Add project path
@@ -16,19 +17,19 @@ import seekdbclient
 
 # ==================== Environment Variable Configuration ====================
 # Embedded mode
-SEEKDB_PATH = os.environ.get('SEEKDB_PATH', os.path.join(project_root, "seekdb"))
+SEEKDB_PATH = os.environ.get('SEEKDB_PATH', os.path.join(project_root, "seekdb_store"))
 SEEKDB_DATABASE = os.environ.get('SEEKDB_DATABASE', 'test')
 
-# Server mode (SeekDB Server)
-SERVER_HOST = os.environ.get('SERVER_HOST', '127.0.0.1')
-SERVER_PORT = int(os.environ.get('SERVER_PORT', '2881'))  # SeekDB Server port
+# Server mode
+SERVER_HOST = os.environ.get('SERVER_HOST', 'localhost')
+SERVER_PORT = int(os.environ.get('SERVER_PORT', '2881'))
 SERVER_DATABASE = os.environ.get('SERVER_DATABASE', 'test')
 SERVER_USER = os.environ.get('SERVER_USER', 'root')
 SERVER_PASSWORD = os.environ.get('SERVER_PASSWORD', '')
 
 # OceanBase mode
-OB_HOST = os.environ.get('OB_HOST', '127.0.0.1')
-OB_PORT = int(os.environ.get('OB_PORT', '11402'))
+OB_HOST = os.environ.get('OB_HOST', 'localhost')
+OB_PORT = int(os.environ.get('OB_PORT', '11202'))
 OB_TENANT = os.environ.get('OB_TENANT', 'mysql')
 OB_DATABASE = os.environ.get('OB_DATABASE', 'test')
 OB_USER = os.environ.get('OB_USER', 'root')
@@ -105,6 +106,68 @@ class TestClientCreation:
         
         print(f"\n✅ Embedded client created and connected successfully: path={SEEKDB_PATH}, database={SEEKDB_DATABASE}")
         print(f"   Query result: {result[0]}")
+        
+        # Test create_collection interface
+        test_collection_name = "test_collection_" + str(int(time.time()))
+        test_dimension = 128
+        
+        # Create collection
+        collection = client.create_collection(
+            name=test_collection_name,
+            dimension=test_dimension
+        )
+        
+        # Verify collection object
+        assert collection is not None
+        assert collection.name == test_collection_name
+        assert collection.dimension == test_dimension
+                
+        # Verify table was created by checking if it exists
+        table_name = f"c$v1{test_collection_name}"
+        try:
+            # Try to describe table structure to verify it exists
+            table_info = client._server.execute(f"DESCRIBE `{table_name}`")
+            assert table_info is not None
+            assert len(table_info) > 0
+            
+            # Verify table has expected columns
+            # Handle both dict (server client) and tuple (embedded client) formats
+            column_names = []
+            for row in table_info:
+                if isinstance(row, dict):
+                    # Server client returns dict with 'Field' or 'field' key
+                    column_names.append(row.get('Field', row.get('field', '')))
+                elif isinstance(row, (tuple, list)):
+                    # Embedded client returns tuple, first element is field name
+                    column_names.append(row[0] if len(row) > 0 else '')
+                else:
+                    # Fallback: try to convert to string
+                    column_names.append(str(row))
+            
+            assert '_id' in column_names
+            assert 'document' in column_names
+            assert 'embedding' in column_names
+            assert 'metadata' in column_names
+            
+            print(f"\n✅ Collection '{test_collection_name}' created successfully")
+            print(f"   Table name: {table_name}")
+            print(f"   Dimension: {test_dimension}")
+            print(f"   Table columns: {', '.join(column_names)}")
+            
+        except Exception as e:
+            # Clean up and fail
+            try:
+                client._server.execute(f"DROP TABLE IF EXISTS `{table_name}`")
+            except Exception:
+                pass
+            pytest.fail(f"Failed to verify collection table creation: {e}")
+        
+        # Clean up: delete the test collection table
+        try:
+            client._server.execute(f"DROP TABLE IF EXISTS `{table_name}`")
+            print(f"   Cleaned up test table: {table_name}")
+        except Exception as cleanup_error:
+            print(f"   Warning: Failed to cleanup test table: {cleanup_error}")
         
         # Automatic cleanup (via __del__)
     
