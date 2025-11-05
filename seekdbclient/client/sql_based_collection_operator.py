@@ -160,7 +160,8 @@ class SqlBasedCollectionOperator:
                 metadata_insert = sql_stringifier.stringify_value(metadatas[i]) \
                     if metadatas and metadatas[i] else "NULL"
                 embedding_insert = sql_stringifier.stringify_value(vectors[i]) if vectors else "NULL"
-                values_str = '(' + ','.join([document_insert, metadata_insert, embedding_insert]) + ')'
+                id_insert = sql_stringifier.stringify_value(ids[i])
+                values_str = '(' + ','.join([id_insert, document_insert, metadata_insert, embedding_insert]) + ')'
 
                 update_set_sql = ''
                 update_set_sql += f",{CollectionFieldNames.DOCUMENT}={sql_stringifier.stringify_value(documents[i])}" \
