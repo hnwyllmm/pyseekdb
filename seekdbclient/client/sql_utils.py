@@ -13,7 +13,7 @@ def _quote_string(value, quote: str):
 
 class SqlStringifier:
     """
-    translate values into string in SQL
+    Translate values into strings in SQL.
     """
 
     def __init__(self, *, quota: str = "'", identifier: str = "`"):
