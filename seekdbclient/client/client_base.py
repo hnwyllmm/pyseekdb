@@ -8,6 +8,7 @@ from typing import List, Optional, Sequence, Dict, Any, Union, TYPE_CHECKING
 from .base_connection import BaseConnection
 from .admin_client import AdminAPI, DEFAULT_TENANT
 from .sql_based_collection_operator import SqlBasedCollectionOperator
+from .meta_info import CollectionNames
 
 if TYPE_CHECKING:
     from .collection import Collection
@@ -92,7 +93,7 @@ class BaseClient(BaseConnection, AdminAPI):
             raise ValueError("dimension parameter is required for creating a collection")
         
         # Construct table name: c$v1${name}
-        table_name = f"c$v1{name}"
+        table_name = CollectionNames.table_name(name)
         
         # Construct CREATE TABLE SQL statement
         sql = f"""CREATE TABLE `{table_name}` (
@@ -124,7 +125,7 @@ class BaseClient(BaseConnection, AdminAPI):
             ValueError: If collection does not exist
         """
         # Construct table name: c$v1${name}
-        table_name = f"c$v1{name}"
+        table_name = CollectionNames.table_name(name)
         
         # Check if table exists by describing it
         try:
@@ -172,7 +173,7 @@ class BaseClient(BaseConnection, AdminAPI):
             ValueError: If collection does not exist
         """
         # Construct table name: c$v1${name}
-        table_name = f"c$v1{name}"
+        table_name = CollectionNames.table_name(name)
         
         # Check if table exists first
         if not self.has_collection(name):
@@ -245,7 +246,7 @@ class BaseClient(BaseConnection, AdminAPI):
             True if exists, False otherwise
         """
         # Construct table name: c$v1${name}
-        table_name = f"c$v1{name}"
+        table_name = CollectionNames.table_name(name)
         
         # Check if table exists
         try:

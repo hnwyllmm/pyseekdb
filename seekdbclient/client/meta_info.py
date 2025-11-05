@@ -12,4 +12,4 @@ class CollectionFieldNames:
 class CollectionNames:
     @staticmethod
     def table_name(collection_name: str) -> str:
-        return f"c$v1{collection_name}"
+        return f"c$v1${collection_name}"
