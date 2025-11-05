@@ -61,16 +61,17 @@ class SqlBasedCollectionOperator:
             fields.append(CollectionFieldNames.ID)
         fields_sql = ','.join(fields)
         base_sql = f'INSERT INTO {CollectionNames.table_name(collection_name)} ({fields_sql}) VALUES '
-        values_str = ','
+        values_list = []
         for i in range(num_item):
             document = sql_stringifier.stringify_value(documents[i]) if documents else "NULL"
             metadata = sql_stringifier.stringify_value(metadatas[i]) if metadatas else "NULL"
-            embedding = sql_stringifier.stringify_value(vectors[i]) if vectors else "NULL"
-            values_str += '(' + ','.join([document, metadata, embedding])
+            embedding = sql_stringifier.stringify_value({vectors[i]}) if vectors else "NULL"
+            value_items = [document, metadata, embedding]
             if ids:
-                values_str += ',' + sql_stringifier.stringify_value(ids[i])
-            values_str += ')'
-        sql = base_sql + values_str[1:]
+                value_items.append(sql_stringifier.stringify_value(ids[i]))
+            values_list.append('(' + ','.join(value_items) + ')')
+        values_str = ','.join(values_list)
+        sql = base_sql + values_str
 
         logger.debug(f"add data to collection. collection={collection_name}, sql={sql}")
         client.execute(sql)
