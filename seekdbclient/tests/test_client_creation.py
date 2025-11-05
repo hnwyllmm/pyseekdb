@@ -21,7 +21,7 @@ SEEKDB_PATH = os.environ.get('SEEKDB_PATH', os.path.join(project_root, "seekdb_s
 SEEKDB_DATABASE = os.environ.get('SEEKDB_DATABASE', 'test')
 
 # Server mode
-SERVER_HOST = os.environ.get('SERVER_HOST', 'localhost')
+SERVER_HOST = os.environ.get('SERVER_HOST', '11.161.205.15')
 SERVER_PORT = int(os.environ.get('SERVER_PORT', '2881'))
 SERVER_DATABASE = os.environ.get('SERVER_DATABASE', 'test')
 SERVER_USER = os.environ.get('SERVER_USER', 'root')
@@ -38,6 +38,144 @@ OB_PASSWORD = os.environ.get('OB_PASSWORD', '')
 
 class TestClientCreation:
     """Test client creation, connection, and query execution for all three modes"""
+    
+    def _test_collection_management(self, client):
+        """
+        Common test function for all collection management interfaces
+        
+        Args:
+            client: Client proxy object with _server attribute
+        """
+        # Test 1: create_collection - create a new collection
+        test_collection_name = "test_collection_" + str(int(time.time()))
+        test_dimension = 128
+        
+        # Create collection
+        collection = client.create_collection(
+            name=test_collection_name,
+            dimension=test_dimension
+        )
+        
+        # Verify collection object
+        assert collection is not None
+        assert collection.name == test_collection_name
+        assert collection.dimension == test_dimension
+        
+        # Verify table was created by checking if it exists
+        table_name = f"c$v1{test_collection_name}"
+        try:
+            # Try to describe table structure to verify it exists
+            table_info = client._server.execute(f"DESCRIBE `{table_name}`")
+            assert table_info is not None
+            assert len(table_info) > 0
+            
+            # Verify table has expected columns
+            # Handle both dict (server client) and tuple (embedded client) formats
+            column_names = []
+            for row in table_info:
+                if isinstance(row, dict):
+                    # Server client returns dict with 'Field' or 'field' key
+                    column_names.append(row.get('Field', row.get('field', '')))
+                elif isinstance(row, (tuple, list)):
+                    # Embedded client returns tuple, first element is field name
+                    column_names.append(row[0] if len(row) > 0 else '')
+                else:
+                    # Fallback: try to convert to string
+                    column_names.append(str(row))
+            
+            assert '_id' in column_names
+            assert 'document' in column_names
+            assert 'embedding' in column_names
+            assert 'metadata' in column_names
+            
+            print(f"\n✅ Collection '{test_collection_name}' created successfully")
+            print(f"   Table name: {table_name}")
+            print(f"   Dimension: {test_dimension}")
+            print(f"   Table columns: {', '.join(column_names)}")
+            
+        except Exception as e:
+            # Clean up and fail
+            try:
+                client._server.execute(f"DROP TABLE IF EXISTS `{table_name}`")
+            except Exception:
+                pass
+            pytest.fail(f"Failed to verify collection table creation: {e}")
+        
+        # Test 2: get_collection - get the collection we just created
+        retrieved_collection = client.get_collection(name=test_collection_name)
+        assert retrieved_collection is not None
+        assert retrieved_collection.name == test_collection_name
+        assert retrieved_collection.dimension == test_dimension
+        print(f"\n✅ Collection '{test_collection_name}' retrieved successfully")
+        print(f"   Collection name: {retrieved_collection.name}")
+        print(f"   Collection dimension: {retrieved_collection.dimension}")
+        
+        # Test 3: has_collection - should return False for non-existent collection
+        non_existent_name = "test_collection_nonexistent_" + str(int(time.time()))
+        assert not client.has_collection(non_existent_name)
+        print(f"\n✅ has_collection correctly returns False for non-existent collection")
+        
+        # Test 4: has_collection - should return True for existing collection
+        assert client.has_collection(test_collection_name)
+        print(f"\n✅ has_collection correctly returns True for existing collection")
+        
+        # Test 5: get_or_create_collection - should get existing collection
+        existing_collection = client.get_or_create_collection(
+            name=test_collection_name,
+            dimension=test_dimension
+        )
+        assert existing_collection is not None
+        assert existing_collection.name == test_collection_name
+        assert existing_collection.dimension == test_dimension
+        print(f"\n✅ get_or_create_collection successfully retrieved existing collection")
+        
+        # Test 6: get_or_create_collection - should create new collection
+        test_collection_name_mgmt = "test_collection_mgmt_" + str(int(time.time()))
+        new_collection = client.get_or_create_collection(
+            name=test_collection_name_mgmt,
+            dimension=test_dimension
+        )
+        assert new_collection is not None
+        assert new_collection.name == test_collection_name_mgmt
+        assert new_collection.dimension == test_dimension
+        print(f"\n✅ get_or_create_collection successfully created collection '{test_collection_name_mgmt}'")
+        
+        # Test 7: list_collections - should include our collections
+        collections = client.list_collections()
+        assert isinstance(collections, list)
+        collection_names = [c.name for c in collections]
+        assert test_collection_name in collection_names
+        assert test_collection_name_mgmt in collection_names
+        print(f"\n✅ list_collections successfully listed collections: {len(collections)} found")
+        print(f"   Collection names: {collection_names}")
+        
+        # Test 8: delete_collection - should delete the collection
+        client.delete_collection(test_collection_name_mgmt)
+        assert not client.has_collection(test_collection_name_mgmt)
+        print(f"\n✅ delete_collection successfully deleted collection '{test_collection_name_mgmt}'")
+        
+        # Test 9: delete_collection - should raise error for non-existent collection
+        try:
+            client.delete_collection(test_collection_name_mgmt)
+            pytest.fail("delete_collection should raise ValueError for non-existent collection")
+        except ValueError as e:
+            assert "does not exist" in str(e)
+            print(f"\n✅ delete_collection correctly raises ValueError for non-existent collection")
+        
+        # Test 10: get_or_create_collection without dimension - should raise error for non-existent collection
+        try:
+            client.get_or_create_collection(name="non_existent_collection")
+            pytest.fail("get_or_create_collection should raise ValueError when collection doesn't exist and dimension is not provided")
+        except ValueError as e:
+            assert "dimension parameter is required" in str(e)
+            print(f"\n✅ get_or_create_collection correctly raises ValueError when dimension is missing")
+        
+        # Clean up: delete the test collection table
+        try:
+            client._server.execute(f"DROP TABLE IF EXISTS `{table_name}`")
+            print(f"   Cleaned up test table: {table_name}")
+        except Exception as cleanup_error:
+            print(f"   Warning: Failed to cleanup test table: {cleanup_error}")
     
     def test_create_embedded_client(self):
         """Test creating embedded client (lazy loading) and executing queries"""
@@ -107,67 +245,8 @@ class TestClientCreation:
         print(f"\n✅ Embedded client created and connected successfully: path={SEEKDB_PATH}, database={SEEKDB_DATABASE}")
         print(f"   Query result: {result[0]}")
         
-        # Test create_collection interface
-        test_collection_name = "test_collection_" + str(int(time.time()))
-        test_dimension = 128
-        
-        # Create collection
-        collection = client.create_collection(
-            name=test_collection_name,
-            dimension=test_dimension
-        )
-        
-        # Verify collection object
-        assert collection is not None
-        assert collection.name == test_collection_name
-        assert collection.dimension == test_dimension
-                
-        # Verify table was created by checking if it exists
-        table_name = f"c$v1{test_collection_name}"
-        try:
-            # Try to describe table structure to verify it exists
-            table_info = client._server.execute(f"DESCRIBE `{table_name}`")
-            assert table_info is not None
-            assert len(table_info) > 0
-            
-            # Verify table has expected columns
-            # Handle both dict (server client) and tuple (embedded client) formats
-            column_names = []
-            for row in table_info:
-                if isinstance(row, dict):
-                    # Server client returns dict with 'Field' or 'field' key
-                    column_names.append(row.get('Field', row.get('field', '')))
-                elif isinstance(row, (tuple, list)):
-                    # Embedded client returns tuple, first element is field name
-                    column_names.append(row[0] if len(row) > 0 else '')
-                else:
-                    # Fallback: try to convert to string
-                    column_names.append(str(row))
-            
-            assert '_id' in column_names
-            assert 'document' in column_names
-            assert 'embedding' in column_names
-            assert 'metadata' in column_names
-            
-            print(f"\n✅ Collection '{test_collection_name}' created successfully")
-            print(f"   Table name: {table_name}")
-            print(f"   Dimension: {test_dimension}")
-            print(f"   Table columns: {', '.join(column_names)}")
-            
-        except Exception as e:
-            # Clean up and fail
-            try:
-                client._server.execute(f"DROP TABLE IF EXISTS `{table_name}`")
-            except Exception:
-                pass
-            pytest.fail(f"Failed to verify collection table creation: {e}")
-        
-        # Clean up: delete the test collection table
-        try:
-            client._server.execute(f"DROP TABLE IF EXISTS `{table_name}`")
-            print(f"   Cleaned up test table: {table_name}")
-        except Exception as cleanup_error:
-            print(f"   Warning: Failed to cleanup test table: {cleanup_error}")
+        # Test all collection management interfaces
+        self._test_collection_management(client)
         
         # Automatic cleanup (via __del__)
     
@@ -207,6 +286,9 @@ class TestClientCreation:
             
             print(f"\n✅ Server client created and connected successfully: {SERVER_USER}@{SERVER_HOST}:{SERVER_PORT}/{SERVER_DATABASE}")
             print(f"   Query result: {result[0]}")
+            
+            # Test all collection management interfaces
+            self._test_collection_management(client)
             
         except Exception as e:
             pytest.fail(f"Server connection failed ({SERVER_HOST}:{SERVER_PORT}): {e}\n"
@@ -253,6 +335,9 @@ class TestClientCreation:
             
             print(f"\n✅ OceanBase client created and connected successfully: {client._server.full_user}@{OB_HOST}:{OB_PORT}/{OB_DATABASE}")
             print(f"   Query result: {result[0]}")
+            
+            # Test all collection management interfaces
+            self._test_collection_management(client)
             
         except Exception as e:
             pytest.fail(f"OceanBase connection failed ({OB_HOST}:{OB_PORT}): {e}\n"

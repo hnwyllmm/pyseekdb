@@ -175,6 +175,15 @@ class _ClientProxy:
         """Proxy to server implementation - collection operations only"""
         return self._server.has_collection(name=name)
     
+    def get_or_create_collection(
+        self,
+        name: str,
+        dimension: Optional[int] = None,
+        **kwargs
+    ) -> "Collection":
+        """Proxy to server implementation - collection operations only"""
+        return self._server.get_or_create_collection(name=name, dimension=dimension, **kwargs)
+    
     def __repr__(self):
         return f"<Client server={self._server}>"
     

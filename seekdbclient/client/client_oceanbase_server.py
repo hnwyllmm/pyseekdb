@@ -92,7 +92,11 @@ class OceanBaseServerClient(BaseClient):
         with conn.cursor() as cursor:
             cursor.execute(sql)
             
-            if sql.strip().upper().startswith('SELECT') or sql.strip().upper().startswith('SHOW'):
+            sql_upper = sql.strip().upper()
+            if (sql_upper.startswith('SELECT') or 
+                sql_upper.startswith('SHOW') or 
+                sql_upper.startswith('DESCRIBE') or
+                sql_upper.startswith('DESC')):
                 return cursor.fetchall()
             
             conn.commit()
@@ -108,43 +112,11 @@ class OceanBaseServerClient(BaseClient):
     
     # ==================== Collection Management (framework) ====================
     
-    def create_collection(
-        self,
-        name: str,
-        dimension: Optional[int] = None,
-        **kwargs
-    ) -> Collection:
-        """Create collection"""
-        logger.info(f"OceanBaseServerClient: create_collection framework for {name} (dim={dimension})")
-        # TODO: implement OceanBase create_collection logic
-        # Return Collection object after creating table
-        return Collection(client=self, name=name, dimension=dimension, **kwargs)
-    
-    def get_collection(self, name: str) -> Collection:
-        """Get collection object"""
-        logger.info(f"OceanBaseServerClient: get_collection framework for {name}")
-        # TODO: implement OceanBase get_collection logic
-        # Return Collection object after getting table info
-        return Collection(client=self, name=name)
-    
-    def delete_collection(self, name: str) -> None:
-        """Delete collection"""
-        logger.info(f"OceanBaseServerClient: delete_collection framework for {name}")
-        # TODO: implement OceanBase delete_collection logic
-        pass
-    
-    def list_collections(self) -> List[Collection]:
-        """List all collections"""
-        logger.info("OceanBaseServerClient: list_collections framework")
-        # TODO: implement OceanBase list_collections logic
-        # Return list of Collection objects
-        return []
-    
-    def has_collection(self, name: str) -> bool:
-        """Check if collection exists"""
-        logger.info(f"OceanBaseServerClient: has_collection framework for {name}")
-        # TODO: implement OceanBase has_collection logic
-        return False
+    # create_collection is inherited from BaseClient - no override needed
+    # get_collection is inherited from BaseClient - no override needed
+    # delete_collection is inherited from BaseClient - no override needed
+    # list_collections is inherited from BaseClient - no override needed
+    # has_collection is inherited from BaseClient - no override needed
     
     # ==================== Collection Internal Operations ====================
     # These methods are called by Collection objects
