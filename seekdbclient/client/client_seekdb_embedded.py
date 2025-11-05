@@ -164,13 +164,7 @@ class SeekdbEmbeddedClient(BaseClient):
     # ==================== Collection Management (framework) ====================
     
     # create_collection is inherited from BaseClient - no override needed
-    
-    def get_collection(self, name: str) -> Collection:
-        """Get collection object"""
-        logger.info(f"SeekdbEmbeddedClient: get_collection framework for {name}")
-        # TODO: implement seekdb get_collection logic
-        # Return Collection object after getting table info
-        return Collection(client=self, name=name)
+    # get_collection is inherited from BaseClient - no override needed
     
     def delete_collection(self, name: str) -> None:
         """Delete collection"""

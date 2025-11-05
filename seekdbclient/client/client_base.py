@@ -1,6 +1,7 @@
 """
 Base client interface definition
 """
+import re
 from abc import ABC, abstractmethod
 from typing import List, Optional, Sequence, Dict, Any, Union, TYPE_CHECKING
 
@@ -109,8 +110,7 @@ class BaseClient(BaseConnection, AdminAPI):
         # Create and return Collection object
         return Collection(client=self, name=name, dimension=dimension, **kwargs)
     
-    @abstractmethod
-    def get_collection(self, name: str) -> "Collection":
+    def get_collection(self, name: str) -> Collection:
         """
         Get a collection object (user-facing API)
         
@@ -119,8 +119,47 @@ class BaseClient(BaseConnection, AdminAPI):
             
         Returns:
             Collection object
+            
+        Raises:
+            ValueError: If collection does not exist
         """
-        pass
+        # Construct table name: c$v1${name}
+        table_name = f"c$v1{name}"
+        
+        # Check if table exists by describing it
+        try:
+            table_info = self.execute(f"DESCRIBE `{table_name}`")
+            if not table_info or len(table_info) == 0:
+                raise ValueError(f"Collection '{name}' does not exist (table '{table_name}' not found)")
+        except Exception as e:
+            # If DESCRIBE fails, check if it's because table doesn't exist
+            error_msg = str(e).lower()
+            if "doesn't exist" in error_msg or "not found" in error_msg or "table" in error_msg:
+                raise ValueError(f"Collection '{name}' does not exist (table '{table_name}' not found)") from e
+            raise
+        
+        # Extract dimension from embedding column
+        dimension = None
+        for row in table_info:
+            # Handle both dict and tuple formats
+            if isinstance(row, dict):
+                field_name = row.get('Field', row.get('field', ''))
+                field_type = row.get('Type', row.get('type', ''))
+            elif isinstance(row, (tuple, list)):
+                field_name = row[0] if len(row) > 0 else ''
+                field_type = row[1] if len(row) > 1 else ''
+            else:
+                continue
+            
+            if field_name == 'embedding' and 'vector' in str(field_type).lower():
+                # Extract dimension from vector(dimension) format
+                match = re.search(r'vector\s*\(\s*(\d+)\s*\)', str(field_type), re.IGNORECASE)
+                if match:
+                    dimension = int(match.group(1))
+                break
+        
+        # Create and return Collection object
+        return Collection(client=self, name=name, dimension=dimension)
     
     @abstractmethod
     def delete_collection(self, name: str) -> None:
