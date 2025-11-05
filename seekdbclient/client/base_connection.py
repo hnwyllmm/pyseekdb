@@ -4,6 +4,21 @@ Base connection interface definition
 from abc import ABC, abstractmethod
 from typing import Any
 
+class _Transaction:
+    """
+    Internal transaction object
+    """
+    def __init__(self, connection: BaseConnection):
+        self._connection = connection
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            self._connection.rollback()
+        else:
+            self._connection.commit()
 
 class BaseConnection(ABC):
     """
@@ -31,6 +46,21 @@ class BaseConnection(ABC):
     @abstractmethod
     def execute(self, sql: str) -> Any:
         """Execute SQL statement (basic functionality)"""
+        pass
+
+    @abstractmethod
+    def begin(self) -> _Transaction:
+        """Begin a transaction"""
+        pass
+
+    @abstractmethod
+    def commit(self) -> None:
+        """Commit a transaction"""
+        pass
+
+    @abstractmethod
+    def rollback(self) -> None:
+        """Rollback a transaction"""
         pass
     
     @abstractmethod

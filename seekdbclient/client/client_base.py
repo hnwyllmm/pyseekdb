@@ -1,11 +1,13 @@
 """
 Base client interface definition
 """
+import logging
 from abc import ABC, abstractmethod
 from typing import List, Optional, Sequence, Dict, Any, Union, TYPE_CHECKING
 
 from .base_connection import BaseConnection
 from .admin_client import AdminAPI, DEFAULT_TENANT
+from .sql_based_collection_operator import SqlBasedCollectionOperator
 
 if TYPE_CHECKING:
     from .collection import Collection
@@ -13,6 +15,7 @@ if TYPE_CHECKING:
 else:
     from .collection import Collection  # Import for runtime use
 
+logger = logging.getLogger(__name__)
 
 class ClientAPI(ABC):
     """
@@ -160,7 +163,6 @@ class BaseClient(BaseConnection, AdminAPI):
     
     # -------------------- DML Operations --------------------
     
-    @abstractmethod
     def _collection_add(
         self,
         collection_id: Optional[str],
@@ -183,9 +185,8 @@ class BaseClient(BaseConnection, AdminAPI):
             documents: Single document or list of documents (optional)
             **kwargs: Additional parameters
         """
-        pass
+        SqlBasedCollectionOperator.add(self, collection_name, ids, vectors, metadatas, documents)
     
-    @abstractmethod
     def _collection_update(
         self,
         collection_id: Optional[str],
@@ -208,9 +209,8 @@ class BaseClient(BaseConnection, AdminAPI):
             documents: New documents (optional)
             **kwargs: Additional parameters
         """
-        pass
+        SqlBasedCollectionOperator.update(self, collection_name, ids, vectors, metadatas, documents)
     
-    @abstractmethod
     def _collection_upsert(
         self,
         collection_id: Optional[str],
@@ -233,9 +233,8 @@ class BaseClient(BaseConnection, AdminAPI):
             documents: Documents (optional)
             **kwargs: Additional parameters
         """
-        pass
+        SqlBasedCollectionOperator.upsert(self, collection_name, ids, vectors, metadatas, documents)
     
-    @abstractmethod
     def _collection_delete(
         self,
         collection_id: Optional[str],
@@ -256,7 +255,7 @@ class BaseClient(BaseConnection, AdminAPI):
             where_document: Filter condition on documents (optional)
             **kwargs: Additional parameters
         """
-        pass
+        SqlBasedCollectionOperator.delete(self, collection_name, ids, where, where_document, **kwargs)
     
     # -------------------- DQL Operations --------------------
     
