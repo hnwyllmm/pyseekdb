@@ -24,7 +24,7 @@ class SqlStringifier:
         if value is None:
             return "NULL"
         if isinstance(value, str):
-            formatted = value.replace(r'\', r'\\').replace(self._quote, f"\\{self._quote}")
+            formatted = value.replace('\\', '\\\\').replace(self._quote, f"\\{self._quote}")
             return _quote_string(formatted, self._quote)
         if isinstance(value, (int, float)):
             return str(value)
