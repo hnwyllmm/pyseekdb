@@ -3,15 +3,15 @@ Embedded mode client - based on seekdb
 """
 import os
 import logging
-from typing import Any, List, Optional, Sequence, Dict, Union, TYPE_CHECKING
+from typing import Any, List, Optional, Sequence, Dict, Union
 
-if TYPE_CHECKING:
-    import seekdb  # type: ignore
+import seekdb  # type: ignore
 
 from .client_base import BaseClient
 from .collection import Collection
 from .database import Database
 from .admin_client import DEFAULT_TENANT
+from .query_result import QueryResult, QueryResultItem
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +161,100 @@ class SeekdbEmbeddedClient(BaseClient):
     def mode(self) -> str:
         return "SeekdbEmbeddedClient"
     
+    def _use_context_manager_for_cursor(self) -> bool:
+        """
+        Override to use try/finally instead of context manager for cursor
+        (SeekDB embedded client doesn't support context manager)
+        """
+        return False
+    
+    def _execute_query_with_cursor(
+        self,
+        conn: Any,
+        sql: str,
+        params: List[Any],
+        use_context_manager: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        Execute SQL query and return normalized rows
+        Override base class to handle pyseekdb cursor which doesn't support parameterized queries
+        
+        Args:
+            conn: Database connection
+            sql: SQL query string with %s placeholders
+            params: Query parameters to embed in SQL
+            use_context_manager: Whether to use context manager (ignored for embedded client)
+            
+        Returns:
+            List of normalized row dictionaries
+        """
+        # pyseekdb.Cursor.execute() only accepts SQL string, not parameters
+        # Embed parameters directly into SQL
+        embedded_sql = sql
+        for param in params:
+            if param is None:
+                embedded_sql = embedded_sql.replace('%s', 'NULL', 1)
+            elif isinstance(param, (int, float)):
+                embedded_sql = embedded_sql.replace('%s', str(param), 1)
+            elif isinstance(param, str):
+                escaped = param.replace("'", "''")
+                embedded_sql = embedded_sql.replace('%s', f"'{escaped}'", 1)
+            else:
+                # For other types (like lists in IN clauses), convert to string
+                escaped = str(param).replace("'", "''")
+                embedded_sql = embedded_sql.replace('%s', f"'{escaped}'", 1)
+        
+        cursor = conn.cursor()
+        try:
+            cursor.execute(embedded_sql)
+            rows = cursor.fetchall()
+            
+            # pyseekdb.Cursor doesn't have description, extract column names from SQL
+            cursor_description = getattr(cursor, 'description', None)
+            if cursor_description is None and rows:
+                import re
+                # Extract column names from SELECT clause using simple regex
+                select_match = re.search(r'SELECT\s+(.+?)\s+FROM', embedded_sql, re.IGNORECASE | re.DOTALL)
+                if select_match:
+                    select_clause = select_match.group(1).strip()
+                    # Split by comma, but skip commas inside parentheses (for function calls)
+                    parts = []
+                    depth = 0
+                    current = ""
+                    for char in select_clause:
+                        if char == '(':
+                            depth += 1
+                        elif char == ')':
+                            depth -= 1
+                        elif char == ',' and depth == 0:
+                            parts.append(current.strip())
+                            current = ""
+                            continue
+                        current += char
+                    if current:
+                        parts.append(current.strip())
+                    
+                    # Extract column names: look for AS alias, otherwise use column name
+                    column_names = []
+                    for part in parts:
+                        # Match "AS alias" pattern
+                        as_match = re.search(r'\s+AS\s+(\w+)', part, re.IGNORECASE)
+                        if as_match:
+                            column_names.append(as_match.group(1))
+                        else:
+                            # No alias, extract column name (remove backticks, get identifier)
+                            col = part.replace('`', '').strip().split()[-1]
+                            column_names.append(col)
+                    
+                    cursor_description = [(name,) for name in column_names]
+            
+            normalized_rows = []
+            for row in rows:
+                normalized_rows.append(self._normalize_row(row, cursor_description))
+            return normalized_rows
+        finally:
+            cursor.close()
+    
     # ==================== Collection Management (framework) ====================
     
     # create_collection is inherited from BaseClient - no override needed
@@ -293,97 +387,7 @@ class SeekdbEmbeddedClient(BaseClient):
         logger.info(f"✅ Successfully deleted data from '{collection_name}'")
     
     # -------------------- DQL Operations --------------------
-    
-    def _collection_query(
-        self,
-        collection_id: Optional[str],
-        collection_name: str,
-        query_vector: Optional[Union[List[float], List[List[float]]]] = None,
-        query_text: Optional[Union[str, List[str]]] = None,
-        n_results: int = 10,
-        where: Optional[Dict[str, Any]] = None,
-        where_document: Optional[Dict[str, Any]] = None,
-        include: Optional[List[str]] = None,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """
-        [Internal] Query collection by vector similarity - Embedded implementation
-        
-        Args:
-            collection_id: Collection ID
-            collection_name: Collection name
-            query_vector: Query vector(s)
-            query_text: Query text(s)
-            n_results: Number of results
-            where: Metadata filter
-            where_document: Document filter
-            include: Fields to include
-            **kwargs: Additional parameters
-            
-        Returns:
-            Query results dictionary
-        """
-        logger.info(f"Embedded: Querying collection '{collection_name}'")
-        conn = self._ensure_connection()
-        
-        # TODO: Implement Embedded specific query logic
-        # Example SQL: SELECT * FROM {collection_name} ORDER BY vector <-> ? LIMIT ?
-        
-        results = {
-            "ids": [],
-            "distances": [],
-            "metadatas": [],
-            "documents": [],
-            "embeddings": []
-        }
-        
-        logger.info(f"✅ Query completed for '{collection_name}'")
-        return results
-    
-    def _collection_get(
-        self,
-        collection_id: Optional[str],
-        collection_name: str,
-        ids: Optional[Union[str, List[str]]] = None,
-        where: Optional[Dict[str, Any]] = None,
-        where_document: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-        include: Optional[List[str]] = None,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """
-        [Internal] Get data from collection - Embedded implementation
-        
-        Args:
-            collection_id: Collection ID
-            collection_name: Collection name
-            ids: IDs to retrieve
-            where: Metadata filter
-            where_document: Document filter
-            limit: Maximum number of results
-            offset: Number of results to skip
-            include: Fields to include
-            **kwargs: Additional parameters
-            
-        Returns:
-            Results dictionary
-        """
-        logger.info(f"Embedded: Getting data from collection '{collection_name}'")
-        conn = self._ensure_connection()
-        
-        # TODO: Implement Embedded specific get logic
-        # Example SQL: SELECT * FROM {collection_name} WHERE id IN (...)
-        
-        results = {
-            "ids": [],
-            "metadatas": [],
-            "documents": [],
-            "embeddings": []
-        }
-        
-        logger.info(f"✅ Get completed for '{collection_name}'")
-        return results
+    # Note: _collection_query() and _collection_get() use base class implementation
     
     def _collection_hybrid_search(
         self,

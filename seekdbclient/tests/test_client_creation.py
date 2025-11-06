@@ -62,7 +62,7 @@ class TestClientCreation:
         assert collection.dimension == test_dimension
         
         # Verify table was created by checking if it exists
-        table_name = f"c$v1{test_collection_name}"
+        table_name = f"c$v1${test_collection_name}"
         try:
             # Try to describe table structure to verify it exists
             table_info = client._server.execute(f"DESCRIBE `{table_name}`")
@@ -192,9 +192,9 @@ class TestClientCreation:
         # Check if seekdb package is available and properly configured
         try:
             import sys
-            project_root = "/home/lyl512932/pythonSDK/pyobvector"
-            if project_root in sys.path:
-                sys.path.remove(project_root)
+            project_root_str = str(project_root)
+            if project_root_str in sys.path:
+                sys.path.remove(project_root_str)
             import seekdb
             if not hasattr(seekdb, 'open') and not hasattr(seekdb, '_initialize_module'):
                 pytest.fail(
@@ -214,8 +214,8 @@ class TestClientCreation:
                 "Or contact the seekdb package maintainer for installation guide."
             )
         finally:
-            if project_root not in sys.path:
-                sys.path.insert(0, project_root)
+            if project_root_str not in sys.path:
+                sys.path.insert(0, project_root_str)
         
         # Create client (returns _ClientProxy)
         client = seekdbclient.Client(

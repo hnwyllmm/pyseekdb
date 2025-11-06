@@ -8,6 +8,7 @@ Design Pattern:
 4. User-facing interface is completely consistent
 """
 from typing import Any, List, Dict, Optional, Union
+from .query_result import QueryResult
 
 
 class Collection:
@@ -241,48 +242,66 @@ class Collection:
     
     def query(
         self,
-        query_vector: Optional[Union[List[float], List[List[float]]]] = None,
-        query_text: Optional[Union[str, List[str]]] = None,
+        query_embeddings: Optional[Union[List[float], List[List[float]]]] = None,
+        query_texts: Optional[Union[str, List[str]]] = None,
         n_results: int = 10,
         where: Optional[Dict[str, Any]] = None,
         where_document: Optional[Dict[str, Any]] = None,
         include: Optional[List[str]] = None,
         **kwargs
-    ) -> Dict[str, Any]:
+    ) -> QueryResult:
         """
         Query collection by vector similarity
         
         Args:
-            query_vector: Query vector(s) (optional if query_text provided)
-            query_text: Query text(s) to be embedded (optional if query_vector provided)
+            query_embeddings: Query vector(s) (optional if query_texts provided)
+            query_texts: Query text(s) to be embedded (optional if query_embeddings provided)
             n_results: Number of results to return (default: 10)
-            where: Filter condition on metadata (optional)
-            where_document: Filter condition on documents (optional)
-            include: Fields to include in results, e.g., ["metadatas", "documents", "distances"] (optional)
+            where: Filter condition on metadata supporting:
+                   - Comparison operators: $eq, $lt, $gt, $lte, $gte, $ne, $in, $nin
+                   - Logical operators: $or, $and, $not
+            where_document: Filter condition on documents supporting:
+                   - $contains: full-text search
+                   - $regex: regular expression matching
+                   - Logical operators: $or, $and
+            include: Fields to include in results, e.g., ["documents", "metadatas", "embeddings"] (optional)
+                     By default, returns "documents" and "metadatas". Always includes "_id".
             **kwargs: Additional parameters
             
         Returns:
-            Query results dictionary containing ids, distances, metadatas, documents, etc.
+            QueryResult object containing query results, each item contains:
+            - _id: record ID (always included)
+            - document: document text (if included)
+            - embedding: vector embedding (if included)
+            - metadata: metadata dictionary (if included)
+            - distance: similarity distance (always included for query)
             
         Examples:
-            # Query by vector
+            # Query by embeddings
             results = collection.query(
-                query_vector=[0.1, 0.2, 0.3],
+                query_embeddings=[[11.1, 12.1, 13.1], [1.1, 2.3, 3.2]],
                 n_results=5
             )
             
             # Query with filters
             results = collection.query(
-                query_vector=[0.1, 0.2, 0.3],
-                where={"tag": "A"},
-                include=["metadatas", "distances"]
+                query_embeddings=[[0.1, 0.2, 0.3]],
+                where={"chapter": {"$gte": 3}},
+                where_document={"$contains": "machine learning"},
+                include=["documents", "metadatas", "embeddings"]
+            )
+            
+            # Query by texts (will be embedded automatically)
+            results = collection.query(
+                query_texts=["my query text"],
+                n_results=10
             )
         """
         return self._client._collection_query(
             collection_id=self._id,
             collection_name=self._name,
-            query_vector=query_vector,
-            query_text=query_text,
+            query_embeddings=query_embeddings,
+            query_texts=query_texts,
             n_results=n_results,
             where=where,
             where_document=where_document,
@@ -299,7 +318,7 @@ class Collection:
         offset: Optional[int] = None,
         include: Optional[List[str]] = None,
         **kwargs
-    ) -> Dict[str, Any]:
+    ) -> QueryResult:
         """
         Get data from collection by IDs or filters
         
@@ -313,7 +332,7 @@ class Collection:
             **kwargs: Additional parameters
             
         Returns:
-            Results dictionary containing ids, metadatas, documents, embeddings, etc.
+            QueryResult object containing get results
             
         Note:
             If no parameters provided, returns all data (up to limit)
