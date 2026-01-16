@@ -25,6 +25,10 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install depencies for unit tests
+        run: |
+          uv run pip install openai sentence-transformers torch torchvision torchaudio
+
       - name: Run unit tests
         run: |
           uv run pytest tests/unit_tests/ -v --log-cli-level=INFO
@@ -83,4 +87,4 @@ jobs:
           SERVER_PORT: 2881
         run: |
           # Run integration tests filtered by test mode
-          uv run pytest tests/integration_tests/ -v --log-cli-level=INFO -k "${{ matrix.test_mode }}" 
+          uv run pytest tests/integration_tests/ -v --log-cli-level=INFO -k "${{ matrix.test_mode }}"
