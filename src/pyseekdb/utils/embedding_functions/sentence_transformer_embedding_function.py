@@ -121,6 +121,8 @@ class SentenceTransformerEmbeddingFunction(EmbeddingFunction[Documents]):
         device = config.get("device", "cpu")
         normalize_embeddings = config.get("normalize_embeddings", False)
         kwargs = config.get("kwargs", {})
+        if not isinstance(kwargs, dict):
+            raise ValueError(f"kwargs must be a dictionary, but got {kwargs}")
 
         return SentenceTransformerEmbeddingFunction(
             model_name=model_name,
