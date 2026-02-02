@@ -18,7 +18,8 @@ To achieve the above design goals, this SDK follows the following design princip
 6. [DQL Operations](#5-dql-operations)
 7. [Embedding Functions](#6-embedding-functions)
 8. [RAG Demo](#rag-demo)
-9. [Testing](#testing)
+9. [Development](#development)
+10. [Testing](#testing)
 
 ## Installation
 
@@ -1156,31 +1157,75 @@ The demo supports three embedding modes:
 
 For detailed instructions, see [demo/rag/README.md](demo/rag/README.md).
 
+## Development
+
+This project uses [uv](https://docs.astral.sh/uv/) as the package manager with [pdm-backend](https://pdm-backend.fming.dev/) as the build backend. All common development tasks are unified through the `Makefile`.
+
+### Prerequisites
+
+Install uv:
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Or via pip
+pip install uv
+```
+
+### Setup Development Environment
+
+```bash
+# Clone the repository
+git clone https://github.com/oceanbase/pyseekdb.git
+cd pyseekdb
+
+# Install dependencies and pre-commit hooks
+make install
+```
+
+### Make Targets
+
+Run `make help` to see all available targets:
+
+```bash
+make help              # Show all available targets
+make install           # Install dependencies and pre-commit hooks
+make check             # Run code quality tools (lint, format check)
+make test              # Run unit tests
+make test-integration-embedded  # Run embedded integration tests
+make build             # Build the package
+make docs              # Build documentation
+make clean             # Clean build artifacts
+```
+
+### Build Artifacts
+
+After running `make build`, the distribution files will be in the `dist/` directory:
+- `pyseekdb-<version>.tar.gz` - Source distribution
+- `pyseekdb-<version>-py3-none-any.whl` - Wheel distribution
+
 ## Testing
 
 ```bash
-# Run all tests (unit + integration)
-python3 -m pytest -v
+# Run unit tests
+make test
 
-# Run tests with log output
-python3 -m pytest -v -s
+# Run embedded integration tests
+make test-integration-embedded
 
-# Run unit tests only
-python3 -m pytest tests/unit_tests/ -v
-
-# Run integration tests only
-python3 -m pytest tests/integration_tests/ -v
-
-# Run integration tests for specific mode
-python3 -m pytest tests/integration_tests/ -v -k "embedded"   # embedded mode
-python3 -m pytest tests/integration_tests/ -v -k "server"     # server mode (requires seekdb server)
-python3 -m pytest tests/integration_tests/ -v -k "oceanbase"  # oceanbase mode (requires OceanBase)
+# Run specific tests with uv run
+uv run pytest tests/integration_tests/ -v -k "server"     # server mode (requires seekdb server)
+uv run pytest tests/integration_tests/ -v -k "oceanbase"  # oceanbase mode (requires OceanBase)
 
 # Run specific test file
-python3 -m pytest tests/integration_tests/test_collection_query.py -v
+uv run pytest tests/integration_tests/test_collection_query.py -v
 
 # Run specific test function
-python3 -m pytest tests/integration_tests/test_collection_query.py::TestCollectionQuery::test_collection_query -v
+uv run pytest tests/integration_tests/test_collection_query.py::TestCollectionQuery::test_collection_query -v
 ```
 
 ## License
