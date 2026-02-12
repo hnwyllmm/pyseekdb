@@ -1,6 +1,6 @@
 [project]
 name = "pyseekdb"
-version = "1.0.0.b4"
+version = "1.1.0.post3"
 description = "A unified Python client for seekdb that supports embedded, server, and OceanBase."
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -11,7 +11,7 @@ classifiers = [
 ]
 dependencies = [
     "pymysql>=1.1.1",
-    "pylibseekdb; sys_platform == \"linux\"",
+    "pylibseekdb; sys_platform == \"linux\" or (sys_platform == \"darwin\" and platform_machine == \"arm64\")",
     "onnxruntime>=1.19.0; python_version < \"3.14\"",
     "tokenizers>=0.15.0; python_version < \"3.14\"",
     "httpx; python_version < \"3.14\"",
