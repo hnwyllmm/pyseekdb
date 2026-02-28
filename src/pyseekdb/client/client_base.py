@@ -36,7 +36,8 @@ from .embedding_function import (
 )
 from .filters import FilterBuilder
 from .meta_info import CollectionFieldNames, CollectionNames
-from .sql_utils import is_query_sql
+from .query_types import QueryHint
+from .sql_utils import _query_hint_to_sql, is_query_sql
 from .version import Version
 
 # Type alias for embedding_function parameter that can be EmbeddingFunction, None, or sentinel
@@ -2258,6 +2259,7 @@ class BaseClient(BaseConnection, AdminAPI):
         where: dict[str, Any] | None = None,
         where_document: dict[str, Any] | None = None,
         include: list[str] | None = None,
+        query_hint: QueryHint | None = None,
         **kwargs,
     ) -> dict[str, Any]:
         """
@@ -2371,12 +2373,15 @@ class BaseClient(BaseConnection, AdminAPI):
             # Convert vector to string format for SQL
             vector_str = _embedding_to_hexstring(query_vector)
 
+            # Build query hint
+            hint_sql = _query_hint_to_sql(query_hint)
+
             # Build SQL query with vector distance calculation
             # Reference: SELECT id, vec FROM t2 ORDER BY l2_distance(vec, '[0.1, 0.2, 0.3]') APPROXIMATE LIMIT 5;
             # Need to include distance in SELECT for result processing
             # Use the appropriate distance function based on the index configuration
             sql = f"""
-                SELECT {select_clause},
+                SELECT {hint_sql} {select_clause},
                        {distance_func}(embedding, {vector_str}) AS distance
                 FROM `{table_name}`
                 {where_clause}
@@ -2450,6 +2455,7 @@ class BaseClient(BaseConnection, AdminAPI):
         limit: int | None = None,
         offset: int | None = None,
         include: list[str] | None = None,
+        query_hint: QueryHint | None = None,
         **kwargs,
     ) -> dict[str, Any]:
         """
@@ -2464,6 +2470,7 @@ class BaseClient(BaseConnection, AdminAPI):
             limit: Maximum number of results (optional)
             offset: Number of results to skip (optional)
             include: Fields to include in results (optional)
+            query_hint: Query optimization hints for database execution (optional)
             **kwargs: Additional parameters
 
         Returns:
@@ -2505,9 +2512,12 @@ class BaseClient(BaseConnection, AdminAPI):
         # Build WHERE clause from filters
         where_clause, params = self._build_where_clause(where, where_document, id_list)
 
+        # Build query hint
+        hint_sql = _query_hint_to_sql(query_hint)
+
         # Build SQL query
         sql = f"""
-            SELECT {select_clause}
+            SELECT {hint_sql} {select_clause}
             FROM `{table_name}`
             {where_clause}
             LIMIT %s OFFSET %s
@@ -2563,6 +2573,7 @@ class BaseClient(BaseConnection, AdminAPI):
         rank: dict[str, Any] | None = None,
         n_results: int = 10,
         include: list[str] | None = None,
+        query_hint: QueryHint | None = None,
         dimension: int | None = None,
         **kwargs,
     ) -> dict[str, Any]:
@@ -2660,6 +2671,12 @@ class BaseClient(BaseConnection, AdminAPI):
         if isinstance(query_sql, str):
             # Remove any surrounding quotes if present
             query_sql = query_sql.strip().strip("'\"")
+
+        # Add query hint to the generated SQL
+        hint_sql = _query_hint_to_sql(query_hint)
+        if hint_sql and query_sql.upper().startswith("SELECT"):
+            # Insert hint after SELECT keyword
+            query_sql = query_sql.replace("SELECT", f"SELECT {hint_sql}", 1)
 
         logger.debug(f"Executing query SQL: {query_sql}")
 

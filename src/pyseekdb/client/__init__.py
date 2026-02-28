@@ -33,6 +33,7 @@ from .embedding_function import (
     get_default_embedding_function,
     register_embedding_function,
 )
+from .query_types import QueryHint
 from .version import Version
 
 logger = logging.getLogger(__name__)
@@ -123,6 +124,7 @@ __all__ = [
     "EmbeddingFunction",
     "FulltextIndexConfig",
     "HNSWConfiguration",
+    "QueryHint",
     "RemoteServerClient",
     "SeekdbEmbeddedClient",
     "Version",

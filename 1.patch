@@ -1,0 +1,273 @@
+diff --git a/README.md b/README.md
+index 6dab596..d01f947 100644
+--- a/README.md
++++ b/README.md
+@@ -176,7 +176,7 @@ from pyseekdb import (
+     DefaultEmbeddingFunction,
+     HNSWConfiguration,
+     Configuration,
+-    FulltextAnalyzerConfig
++    FulltextIndexConfig
+ )
+
+ # Create a client
+@@ -200,7 +200,7 @@ collection = client.create_collection(
+ # Using IK parser (default for Chinese text)
+ config = Configuration(
+     hnsw=HNSWConfiguration(dimension=384, distance='cosine'),
+-    fulltext_config=FulltextAnalyzerConfig(analyzer='ik')
++    fulltext_config=FulltextIndexConfig(analyzer='ik')
+ )
+ collection = client.create_collection(
+     name="my_collection",
+@@ -221,7 +221,7 @@ collection = client.create_collection(
+ # Create a collection with Space parser (for space-separated languages)
+ config = Configuration(
+     hnsw=HNSWConfiguration(dimension=384, distance='cosine'),
+-    fulltext_config=FulltextAnalyzerConfig(analyzer='space')
++    fulltext_config=FulltextIndexConfig(analyzer='space')
+ )
+ collection = client.create_collection(
+     name="my_collection",
+@@ -232,7 +232,7 @@ collection = client.create_collection(
+ # Create a collection with Ngram parser and custom parameters
+ config = Configuration(
+     hnsw=HNSWConfiguration(dimension=384, distance='cosine'),
+-    fulltext_config=FulltextAnalyzerConfig(analyzer='ngram', properties={'ngram_token_size': 3})
++    fulltext_config=FulltextIndexConfig(analyzer='ngram', properties={'ngram_token_size': 3})
+ )
+ collection = client.create_collection(
+     name="my_collection",
+@@ -260,7 +260,7 @@ collection = client.get_or_create_collection(
+ **Parameters:**
+ - `name` (str): Collection name (required). Must be non-empty, use only letters/digits/underscore (`[a-zA-Z0-9_]`), and be at most 512 characters.
+ - `configuration` (Configuration, HNSWConfiguration, or None, optional): Index configuration
+-  - **Recommended:** `Configuration` - Wrapper class that can include both `HNSWConfiguration` and `FulltextAnalyzerConfig`
++  - **Recommended:** `Configuration` - Wrapper class that can include both `HNSWConfiguration` and `FulltextIndexConfig`
+     - Use `Configuration(hnsw=HNSWConfiguration(...))` even when only vector index config is needed
+     - Allows easy addition of fulltext parser config later
+   - `HNSWConfiguration`: Vector index configuration with `dimension` and `distance` metric (backward compatibility)
+diff --git a/pyproject.toml b/pyproject.toml
+index 38406b6..2a8fa1e 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -1,6 +1,6 @@
+ [project]
+ name = "pyseekdb"
+-version = "1.0.0.b4"
++version = "1.1.0.dev1"
+ description = "A unified Python client for seekdb that supports embedded, server, and OceanBase."
+ readme = "README.md"
+ license = { text = "Apache-2.0" }
+diff --git a/src/pyseekdb/utils/embedding_functions/google_vertex_embedding_function.py b/src/pyseekdb/utils/embedding_functions/google_vertex_embedding_function.py
+index 86d9d42..c26b7ba 100644
+--- a/src/pyseekdb/utils/embedding_functions/google_vertex_embedding_function.py
++++ b/src/pyseekdb/utils/embedding_functions/google_vertex_embedding_function.py
+@@ -42,14 +42,14 @@ class GoogleVertexEmbeddingFunction(EmbeddingFunction[Documents]):
+         model_name: str = _DEFAULT_MODEL_NAME,
+         project_id: str = "cloud-large-language-models",
+         region: str = "us-central1",
+-        api_key_env: str | None = "GOOGLE_VERTEX_API_KEY",
++        api_key_env: str | None = "GOOGLE_VERTEX_API_KEY",
+     ):
+         """
+         Initialize the GoogleVertexEmbeddingFunction.
+
+         Args:
+             api_key_env (str, optional): Environment variable name that contains your API key for the Google Vertex AI API.
+-                Defaults to "GOOGLE_VERTEX_API_KEY".
++                Defaults to "GOOGLE_VERTEX_API_KEY".
+             model_name (str, optional): The name of the model to use for text embeddings.
+                 Defaults to "textembedding-gecko".
+             project_id (str, optional): The Google Cloud project ID.
+diff --git a/tests/unit_tests/test_google_vertex_embedding_function.py b/tests/unit_tests/test_google_vertex_embedding_function.py
+index 43d380b..ec5ec60 100644
+--- a/tests/unit_tests/test_google_vertex_embedding_function.py
++++ b/tests/unit_tests/test_google_vertex_embedding_function.py
+@@ -2,12 +2,12 @@
+ Unit tests for GoogleVertexEmbeddingFunction.
+
+ Tests Google Vertex AI embedding function initialization, embedding generation, and configuration.
+-Uses real API calls - requires GOOGLE_VERTEX_API_KEY environment variable to be set and google-cloud-aiplatform to be installed.
++Uses real API calls - requires GOOGLE_VERTEX_API_KEY environment variable to be set and google-cloud-aiplatform to be installed.
+
+ To run this test manually:
+     pytest tests/unit_tests/test_google_vertex_embedding_function.py -v -s
+     # Or with environment variable:
+-    GOOGLE_VERTEX_API_KEY=your-key pytest tests/unit_tests/test_google_vertex_embedding_function.py -v -s
++    GOOGLE_VERTEX_API_KEY=your-key pytest tests/unit_tests/test_google_vertex_embedding_function.py -v -s
+ """
+
+ import importlib.util
+@@ -33,8 +33,8 @@ def is_vertexai_available() -> bool:
+
+ # Skip this test by default - it requires external API access and API keys
+ @pytest.mark.skipif(
+-    not os.environ.get("GOOGLE_VERTEX_API_KEY") or not is_vertexai_available(),
+-    reason="GOOGLE_VERTEX_API_KEY environment variable must be set and google-cloud-aiplatform must be installed",
++    not os.environ.get("GOOGLE_VERTEX_API_KEY") or not is_vertexai_available(),
++    reason="GOOGLE_VERTEX_API_KEY environment variable must be set and google-cloud-aiplatform must be installed",
+ )
+ class TestGoogleVertexEmbeddingFunction:
+     """Test GoogleVertexEmbeddingFunction - skipped by default, requires manual execution"""
+@@ -43,8 +43,8 @@ class TestGoogleVertexEmbeddingFunction:
+         """Test if vertexai package is installed and required environment variables are set."""
+         assert is_vertexai_available(), "google-cloud-aiplatform package is not installed"
+
+-        assert os.environ.get("GOOGLE_VERTEX_API_KEY"), (
+-            "GOOGLE_VERTEX_API_KEY environment variable is not set"
++        assert os.environ.get("GOOGLE_VERTEX_API_KEY"), (
++            "GOOGLE_VERTEX_API_KEY environment variable is not set"
+         )
+
+     def test_initialization_with_defaults(self):
+@@ -60,7 +60,7 @@ class TestGoogleVertexEmbeddingFunction:
+         assert ef.model_name == "textembedding-gecko"
+         assert ef.project_id == "cloud-large-language-models"
+         assert ef.region == "us-central1"
+-        assert ef.api_key_env == "GOOGLE_VERTEX_API_KEY"
++        assert ef.api_key_env == "GOOGLE_VERTEX_API_KEY"
+         print(f"   Model name: {ef.model_name}")
+         print(f"   Project ID: {ef.project_id}")
+         print(f"   Region: {ef.region}")
+@@ -113,7 +113,7 @@ class TestGoogleVertexEmbeddingFunction:
+
+         custom_key_env = "CUSTOM_GOOGLE_VERTEX_KEY"
+         if not os.environ.get(custom_key_env):
+-            os.environ[custom_key_env] = os.environ.get("GOOGLE_VERTEX_API_KEY", "your-custom-key")
++            os.environ[custom_key_env] = os.environ.get("GOOGLE_VERTEX_API_KEY", "your-custom-key")
+
+         ef = GoogleVertexEmbeddingFunction(api_key_env=custom_key_env)
+         assert ef.api_key_env == custom_key_env
+@@ -129,12 +129,12 @@ class TestGoogleVertexEmbeddingFunction:
+             model_name="textembedding-gecko@003",
+             project_id="my-project",
+             region="us-west1",
+-            api_key_env="GOOGLE_VERTEX_API_KEY",
++            api_key_env="GOOGLE_VERTEX_API_KEY",
+         )
+         assert ef.model_name == "textembedding-gecko@003"
+         assert ef.project_id == "my-project"
+         assert ef.region == "us-west1"
+-        assert ef.api_key_env == "GOOGLE_VERTEX_API_KEY"
++        assert ef.api_key_env == "GOOGLE_VERTEX_API_KEY"
+         print("   All parameters set correctly")
+
+     def test_initialization_missing_api_key(self):
+@@ -142,14 +142,14 @@ class TestGoogleVertexEmbeddingFunction:
+         print("\n✅ Testing GoogleVertexEmbeddingFunction initialization with missing API key")
+
+         # Temporarily remove API key
+-        original_key = os.environ.pop("GOOGLE_VERTEX_API_KEY", None)
++        original_key = os.environ.pop("GOOGLE_VERTEX_API_KEY", None)
+         try:
+             with pytest.raises(ValueError, match="environment variable is not set"):
+                 GoogleVertexEmbeddingFunction()
+         finally:
+             # Restore API key
+             if original_key:
+-                os.environ["GOOGLE_VERTEX_API_KEY"] = original_key
++                os.environ["GOOGLE_VERTEX_API_KEY"] = original_key
+
+     def test_initialization_without_vertexai(self):
+         """Test that initialization fails when vertexai is not installed"""
+@@ -242,7 +242,7 @@ class TestGoogleVertexEmbeddingFunction:
+
+
+ @pytest.mark.skipif(
+-    not is_vertexai_available() or not os.environ.get("GOOGLE_VERTEX_API_KEY"),
++    not is_vertexai_available() or not os.environ.get("GOOGLE_VERTEX_API_KEY"),
+     reason="google-cloud-aiplatform is not available on this system",
+ )
+ class TestGoogleVertexEmbeddingFunctionPersistence:
+@@ -254,7 +254,7 @@ class TestGoogleVertexEmbeddingFunctionPersistence:
+
+     def test_get_config_with_defaults(self):
+         """Test that get_config() returns correct config with default values"""
+-        with env_guard(GOOGLE_VERTEX_API_KEY="test-key"):
++        with env_guard(GOOGLE_VERTEX_API_KEY="test-key"):
+             ef = GoogleVertexEmbeddingFunction()
+             config = ef.get_config()
+
+@@ -262,7 +262,7 @@ class TestGoogleVertexEmbeddingFunctionPersistence:
+             assert config["model_name"] == "textembedding-gecko"
+             assert config["project_id"] == "cloud-large-language-models"
+             assert config["region"] == "us-central1"
+-            assert config["api_key_env"] == "GOOGLE_VERTEX_API_KEY"
++            assert config["api_key_env"] == "GOOGLE_VERTEX_API_KEY"
+             # name should NOT be in config
+             assert "name" not in config
+
+@@ -285,20 +285,20 @@ class TestGoogleVertexEmbeddingFunctionPersistence:
+     def test_build_from_config_with_defaults(self):
+         """Test that build_from_config() restores instance with default values"""
+         config = {
+-            "api_key_env": "GOOGLE_VERTEX_API_KEY",
++            "api_key_env": "GOOGLE_VERTEX_API_KEY",
+             "model_name": "textembedding-gecko",
+             "project_id": "cloud-large-language-models",
+             "region": "us-central1",
+         }
+
+-        with env_guard(GOOGLE_VERTEX_API_KEY="test-key"):
++        with env_guard(GOOGLE_VERTEX_API_KEY="test-key"):
+             restored_ef = GoogleVertexEmbeddingFunction.build_from_config(config)
+
+             assert isinstance(restored_ef, GoogleVertexEmbeddingFunction)
+             assert restored_ef.model_name == "textembedding-gecko"
+             assert restored_ef.project_id == "cloud-large-language-models"
+             assert restored_ef.region == "us-central1"
+-            assert restored_ef.api_key_env == "GOOGLE_VERTEX_API_KEY"
++            assert restored_ef.api_key_env == "GOOGLE_VERTEX_API_KEY"
+
+     def test_build_from_config_with_custom_values(self):
+         """Test that build_from_config() restores instance with custom values"""
+@@ -332,7 +332,7 @@ class TestGoogleVertexEmbeddingFunctionPersistence:
+     def test_build_from_config_missing_model_name(self):
+         """Test that build_from_config() raises AssertionError when model_name is missing"""
+         config = {
+-            "api_key_env": "GOOGLE_VERTEX_API_KEY",
++            "api_key_env": "GOOGLE_VERTEX_API_KEY",
+             "project_id": "cloud-large-language-models",
+             "region": "us-central1",
+         }
+@@ -343,7 +343,7 @@ class TestGoogleVertexEmbeddingFunctionPersistence:
+     def test_build_from_config_missing_project_id(self):
+         """Test that build_from_config() raises AssertionError when project_id is missing"""
+         config = {
+-            "api_key_env": "GOOGLE_VERTEX_API_KEY",
++            "api_key_env": "GOOGLE_VERTEX_API_KEY",
+             "model_name": "textembedding-gecko",
+             "region": "us-central1",
+         }
+@@ -354,7 +354,7 @@ class TestGoogleVertexEmbeddingFunctionPersistence:
+     def test_build_from_config_missing_region(self):
+         """Test that build_from_config() raises AssertionError when region is missing"""
+         config = {
+-            "api_key_env": "GOOGLE_VERTEX_API_KEY",
++            "api_key_env": "GOOGLE_VERTEX_API_KEY",
+             "model_name": "textembedding-gecko",
+             "project_id": "cloud-large-language-models",
+         }
+@@ -364,7 +364,7 @@ class TestGoogleVertexEmbeddingFunctionPersistence:
+
+     def test_persistence_roundtrip(self):
+         """Test complete roundtrip: get_config -> build_from_config"""
+-        with env_guard(GOOGLE_VERTEX_API_KEY="test-key"):
++        with env_guard(GOOGLE_VERTEX_API_KEY="test-key"):
+             original_ef = GoogleVertexEmbeddingFunction(
+                 model_name="textembedding-gecko@003",
+                 project_id="my-project",
+diff --git a/uv.lock b/uv.lock
+index dc335b1..5fb2ab4 100644
+--- a/uv.lock
++++ b/uv.lock
+@@ -1277,7 +1277,7 @@ wheels = [
+
+ [[package]]
+ name = "pyseekdb"
+-version = "1.0.0b4"
++version = "1.1.0.dev1"
+ source = { editable = "." }
+ dependencies = [
+     { name = "httpx" },
