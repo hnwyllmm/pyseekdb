@@ -65,7 +65,7 @@ def render_sql_with_params(sql: str, params: Sequence[Any]) -> str:
     return "".join(rendered_parts)
 
 
-def _query_hint_to_sql(query_hint: QueryHint | None) -> str:
+def _query_hint_to_sql(query_hint: QueryHint | None, table_name: str) -> str:
     """
     Convert QueryHint to SQL HINT string for OceanBase/seekdb.
 
@@ -75,7 +75,7 @@ def _query_hint_to_sql(query_hint: QueryHint | None) -> str:
     Returns:
         SQL HINT string in format "/*+ hint1(value1) hint2(value2) */" or empty string if no hints
     """
-    if query_hint is None:
+    if query_hint is None or not table_name:
         return ""
 
     hints = []
@@ -87,6 +87,9 @@ def _query_hint_to_sql(query_hint: QueryHint | None) -> str:
         # Convert seconds to microseconds for OceanBase
         timeout_microseconds = int(query_hint.query_timeout * 1_000_000)
         hints.append(f"query_timeout({timeout_microseconds})")
+
+    if query_hint.vector_index is not None and query_hint.vector_index:
+        hints.append(f"vector_index({table_name} idx_vec)")
 
     if not hints:
         return ""

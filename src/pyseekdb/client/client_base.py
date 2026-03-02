@@ -2374,7 +2374,7 @@ class BaseClient(BaseConnection, AdminAPI):
             vector_str = _embedding_to_hexstring(query_vector)
 
             # Build query hint
-            hint_sql = _query_hint_to_sql(query_hint)
+            hint_sql = _query_hint_to_sql(query_hint, table_name)
 
             # Build SQL query with vector distance calculation
             # Reference: SELECT id, vec FROM t2 ORDER BY l2_distance(vec, '[0.1, 0.2, 0.3]') APPROXIMATE LIMIT 5;
@@ -2513,7 +2513,7 @@ class BaseClient(BaseConnection, AdminAPI):
         where_clause, params = self._build_where_clause(where, where_document, id_list)
 
         # Build query hint
-        hint_sql = _query_hint_to_sql(query_hint)
+        hint_sql = _query_hint_to_sql(query_hint, table_name)
 
         # Build SQL query
         sql = f"""
@@ -2673,10 +2673,10 @@ class BaseClient(BaseConnection, AdminAPI):
             query_sql = query_sql.strip().strip("'\"")
 
         # Add query hint to the generated SQL
-        hint_sql = _query_hint_to_sql(query_hint)
+        hint_sql = _query_hint_to_sql(query_hint, table_name)
         if hint_sql and query_sql.upper().startswith("SELECT"):
             # Insert hint after SELECT keyword
-            query_sql = query_sql.replace("SELECT", f"SELECT {hint_sql}", 1)
+            query_sql = f"SELECT {hint_sql} {query_sql[len('SELECT') :]}"
 
         logger.debug(f"Executing query SQL: {query_sql}")
 

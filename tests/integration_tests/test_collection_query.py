@@ -14,6 +14,17 @@ from pyseekdb.client.query_types import QueryHint
 class TestCollectionQuery:
     """Test collection.query() interface using parameterized db_client fixture"""
 
+    def _generate_query_vector(self, dimension: int, base_vector: list[float] | None = None) -> list[float]:
+        """Generate a query vector with the correct dimension"""
+        if base_vector is None:
+            base_vector = [1.0, 2.0, 3.0]
+
+        if dimension <= len(base_vector):
+            return base_vector[:dimension]
+        else:
+            extended = base_vector * ((dimension // len(base_vector)) + 1)
+            return extended[:dimension]
+
     def _insert_test_data(self, client, collection_name: str, dimension: int = 3):
         """Helper method to insert test data using direct SQL
 
@@ -26,11 +37,11 @@ class TestCollectionQuery:
 
         # Base vectors (3D) - will be extended or truncated to match actual dimension
         base_vectors = [
-            [1.0, 2.0, 3.0],
-            [2.0, 3.0, 4.0],
-            [1.1, 2.1, 3.1],
-            [2.1, 3.1, 4.1],
-            [1.2, 2.2, 3.2],
+            self._generate_query_vector(dimension, [1.0, 2.0, 3.0]),
+            self._generate_query_vector(dimension, [2.0, 3.0, 4.0]),
+            self._generate_query_vector(dimension, [1.1, 2.1, 3.1]),
+            self._generate_query_vector(dimension, [2.1, 3.1, 4.1]),
+            self._generate_query_vector(dimension, [1.2, 2.2, 3.2]),
         ]
 
         # Insert test data with vectors, documents, and metadata
@@ -71,6 +82,7 @@ class TestCollectionQuery:
         )
 
         print(f"   Inserted {len(test_data)} test records (dimension={dimension})")
+        return insert_ids
 
     def test_collection_query(self, db_client):
         """
@@ -254,7 +266,7 @@ class TestCollectionQuery:
             # Test 4: Query by text with hints
             print("✅ Testing query by text with hints")
             query_hint = QueryHint(parallel=2, query_timeout=10.0)
-            results = collection.query(query_texts=["machine learning algorithms"], n_results=3, query_hint=query_hint)
+            results = collection.query(query_embeddings=query_vector, n_results=3, query_hint=query_hint)
             assert results is not None
             assert "ids" in results
             assert len(results["ids"][0]) <= 3
