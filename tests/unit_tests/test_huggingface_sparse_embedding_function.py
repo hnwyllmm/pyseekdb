@@ -79,12 +79,12 @@ class TestHuggingFaceSparseEFInit:
 
         ef = HuggingFaceSparseEmbeddingFunction(
             model_name="naver/splade-cocondenser-ensembledistil",
-            device="cuda",
+            device="cpu",
             task="query",
             trust_remote_code=True,
         )
         assert ef.model_name == "naver/splade-cocondenser-ensembledistil"
-        assert ef.device == "cuda"
+        assert ef.device == "cpu"
         assert ef.task == "query"
         assert ef.kwargs == {"trust_remote_code": True}
 
@@ -101,16 +101,16 @@ class TestHuggingFaceSparseEFInit:
             HuggingFaceSparseEmbeddingFunction,
         )
 
-        HuggingFaceSparseEmbeddingFunction(model_name="model-a")
-        HuggingFaceSparseEmbeddingFunction(model_name="model-a")
+        HuggingFaceSparseEmbeddingFunction(model_name="naver/splade-v3-distilbert")
+        HuggingFaceSparseEmbeddingFunction(model_name="naver/splade-v3-distilbert")
 
     def test_different_models_loaded_separately(self):
         from pyseekdb.utils.embedding_functions.huggingface_sparse_embedding_function import (
             HuggingFaceSparseEmbeddingFunction,
         )
 
-        HuggingFaceSparseEmbeddingFunction(model_name="model-a")
-        HuggingFaceSparseEmbeddingFunction(model_name="model-b")
+        HuggingFaceSparseEmbeddingFunction(model_name="naver/splade-cocondenser-ensembledistil")
+        HuggingFaceSparseEmbeddingFunction(model_name="naver/splade-v3-distilberts")
 
 
 @pytest.fixture
