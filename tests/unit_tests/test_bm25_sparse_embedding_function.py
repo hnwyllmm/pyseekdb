@@ -4,7 +4,7 @@ Unit tests for BM25SparseEmbeddingFunction.
 Tests tokenization, BM25 scoring, persistence (get_config / build_from_config),
 protocol compliance, and registry integration.
 
-Requires: snowballstemmer
+Requires: bm25s
 
 To run:
     pytest tests/unit_tests/test_bm25_sparse_embedding_function.py -v
@@ -23,26 +23,13 @@ from pyseekdb.client.sparse_embedding_function import (
 
 
 def _deps_available() -> bool:
-    return importlib.util.find_spec("snowballstemmer") is not None
+    return importlib.util.find_spec("bm25s") is not None
 
 
 _skip_no_deps = pytest.mark.skipif(
     not _deps_available(),
-    reason="snowballstemmer not installed",
+    reason="bm25s not installed",
 )
-
-
-@pytest.fixture(autouse=True)
-def _clear_stemmer_cache():
-    """Reset the class-level stemmer cache between tests."""
-    from pyseekdb.utils.embedding_functions.bm25_sparse_embedding_function import (
-        BM25SparseEmbeddingFunction,
-    )
-
-    saved = BM25SparseEmbeddingFunction._stemmer_cache
-    BM25SparseEmbeddingFunction._stemmer_cache = None
-    yield
-    BM25SparseEmbeddingFunction._stemmer_cache = saved
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -159,7 +146,8 @@ class TestBM25Init:
         assert ef.k == pytest.approx(1.2)
         assert ef.b == pytest.approx(0.75)
         assert ef.avg_doc_length == pytest.approx(256.0)
-        assert ef.token_max_length == 40
+        assert ef.dim == 250_000
+        assert ef.language == "english"
         assert ef.stopwords is None
 
     def test_custom_params(self):
@@ -168,12 +156,13 @@ class TestBM25Init:
         )
 
         ef = BM25SparseEmbeddingFunction(
-            k=2.0, b=0.5, avg_doc_length=128.0, token_max_length=20, stopwords=["the", "a"]
+            k=2.0, b=0.5, avg_doc_length=128.0, dim=100_000, language="german", stopwords=["the", "a"]
         )
         assert ef.k == pytest.approx(2.0)
         assert ef.b == pytest.approx(0.5)
         assert ef.avg_doc_length == pytest.approx(128.0)
-        assert ef.token_max_length == 20
+        assert ef.dim == 100_000
+        assert ef.language == "german"
         assert ef.stopwords == ["the", "a"]
 
     def test_stopwords_converted_to_strings(self):
@@ -316,19 +305,6 @@ class TestBM25Encode:
 
         assert r1[0].embeddings == r2[0].embeddings
 
-    def test_long_token_filtered(self):
-        """Tokens exceeding token_max_length should be dropped."""
-        from pyseekdb.utils.embedding_functions.bm25_sparse_embedding_function import (
-            BM25SparseEmbeddingFunction,
-        )
-
-        ef = BM25SparseEmbeddingFunction(token_max_length=5)
-        result = ef(["hi longtokenhere"])
-
-        sv = result[0]
-        assert sv.embeddings is not None
-        assert len(sv.embeddings) == 1
-
     def test_custom_stopwords(self):
         from pyseekdb.utils.embedding_functions.bm25_sparse_embedding_function import (
             BM25SparseEmbeddingFunction,
@@ -342,6 +318,56 @@ class TestBM25Encode:
 
         assert len(r_default[0].embeddings) == 2
         assert len(r_custom[0].embeddings) == 1
+
+    def test_all_indices_within_dim(self):
+        """Every dimension index must be in [0, dim)."""
+        from pyseekdb.utils.embedding_functions.bm25_sparse_embedding_function import (
+            BM25SparseEmbeddingFunction,
+        )
+
+        ef = BM25SparseEmbeddingFunction()
+        docs = [
+            "machine learning algorithms for classification and regression",
+            "python programming tutorial for beginners and advanced users",
+            "advanced deep learning neural networks architectures overview",
+            "data science with python pandas numpy scipy matplotlib seaborn",
+            "introduction to natural language processing transformers attention",
+        ]
+        results = ef(docs)
+        for sv in results:
+            for idx in sv.embeddings:
+                assert 0 <= idx < 250_000, f"index {idx} out of range [0, 250000)"
+
+    def test_small_dim_constrains_indices(self):
+        """A very small dim should keep all indices below that value."""
+        from pyseekdb.utils.embedding_functions.bm25_sparse_embedding_function import (
+            BM25SparseEmbeddingFunction,
+        )
+
+        ef = BM25SparseEmbeddingFunction(dim=100)
+        result = ef(["alpha bravo charlie delta echo foxtrot golf hotel"])
+        sv = result[0]
+        for idx in sv.embeddings:
+            assert 0 <= idx < 100, f"index {idx} out of range [0, 100)"
+
+    def test_dim_collision_sums_scores(self):
+        """When two tokens hash to the same dim-index, their scores should be summed."""
+        from pyseekdb.utils.embedding_functions.bm25_sparse_embedding_function import (
+            BM25SparseEmbeddingFunction,
+        )
+
+        ef_big = BM25SparseEmbeddingFunction(dim=1_000_000)
+        ef_tiny = BM25SparseEmbeddingFunction(dim=1)
+
+        result = ef_tiny(["alpha bravo"])
+        sv = result[0]
+        assert len(sv.embeddings) == 1
+        assert 0 in sv.embeddings
+
+        result_big = ef_big(["alpha bravo"])
+        sv_big = result_big[0]
+        total_big = sum(sv_big.embeddings.values())
+        assert sv.embeddings[0] == pytest.approx(total_big, rel=1e-6)
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -383,8 +409,6 @@ class TestBM25ScoreCorrectness:
 
         doc_len = 3.0
 
-        alpha_hash = None
-        beta_hash = None
         result_alpha_only = ef(["alpha"])
         result_beta_only = ef(["beta"])
         alpha_hash = next(iter(result_alpha_only[0].embeddings.keys()))
@@ -444,7 +468,8 @@ class TestBM25Persistence:
         assert config["k"] == pytest.approx(1.2)
         assert config["b"] == pytest.approx(0.75)
         assert config["avg_doc_length"] == pytest.approx(256.0)
-        assert config["token_max_length"] == 40
+        assert config["dim"] == 250_000
+        assert config["language"] == "english"
         assert "stopwords" not in config
         assert "name" not in config
 
@@ -463,13 +488,14 @@ class TestBM25Persistence:
             BM25SparseEmbeddingFunction,
         )
 
-        ef = BM25SparseEmbeddingFunction(k=2.0, b=0.5, avg_doc_length=128.0, token_max_length=20)
+        ef = BM25SparseEmbeddingFunction(k=2.0, b=0.5, avg_doc_length=128.0, dim=100_000, language="german")
         config = ef.get_config()
 
         assert config["k"] == pytest.approx(2.0)
         assert config["b"] == pytest.approx(0.5)
         assert config["avg_doc_length"] == pytest.approx(128.0)
-        assert config["token_max_length"] == 20
+        assert config["dim"] == 100_000
+        assert config["language"] == "german"
 
     def test_build_from_config_defaults(self):
         from pyseekdb.utils.embedding_functions.bm25_sparse_embedding_function import (
@@ -483,7 +509,8 @@ class TestBM25Persistence:
         assert ef.k == pytest.approx(1.2)
         assert ef.b == pytest.approx(0.75)
         assert ef.avg_doc_length == pytest.approx(256.0)
-        assert ef.token_max_length == 40
+        assert ef.dim == 250_000
+        assert ef.language == "english"
         assert ef.stopwords is None
 
     def test_build_from_config_custom(self):
@@ -495,7 +522,8 @@ class TestBM25Persistence:
             "k": 2.0,
             "b": 0.5,
             "avg_doc_length": 128.0,
-            "token_max_length": 20,
+            "dim": 100_000,
+            "language": "german",
             "stopwords": ["x", "y"],
         }
         ef = BM25SparseEmbeddingFunction.build_from_config(config)
@@ -503,8 +531,25 @@ class TestBM25Persistence:
         assert ef.k == pytest.approx(2.0)
         assert ef.b == pytest.approx(0.5)
         assert ef.avg_doc_length == pytest.approx(128.0)
-        assert ef.token_max_length == 20
+        assert ef.dim == 100_000
+        assert ef.language == "german"
         assert ef.stopwords == ["x", "y"]
+
+    def test_build_from_legacy_config(self):
+        """Old configs with token_max_length should be accepted (field ignored)."""
+        from pyseekdb.utils.embedding_functions.bm25_sparse_embedding_function import (
+            BM25SparseEmbeddingFunction,
+        )
+
+        config = {
+            "k": 1.5,
+            "b": 0.6,
+            "avg_doc_length": 200.0,
+            "token_max_length": 30,
+        }
+        ef = BM25SparseEmbeddingFunction.build_from_config(config)
+        assert isinstance(ef, BM25SparseEmbeddingFunction)
+        assert ef.k == pytest.approx(1.5)
 
     def test_roundtrip(self):
         from pyseekdb.utils.embedding_functions.bm25_sparse_embedding_function import (
@@ -512,7 +557,7 @@ class TestBM25Persistence:
         )
 
         original = BM25SparseEmbeddingFunction(
-            k=1.5, b=0.6, avg_doc_length=200.0, token_max_length=30, stopwords=["foo", "bar"]
+            k=1.5, b=0.6, avg_doc_length=200.0, dim=100_000, language="english", stopwords=["foo", "bar"]
         )
         config = original.get_config()
         restored = BM25SparseEmbeddingFunction.build_from_config(config)
@@ -520,7 +565,8 @@ class TestBM25Persistence:
         assert restored.k == pytest.approx(original.k)
         assert restored.b == pytest.approx(original.b)
         assert restored.avg_doc_length == pytest.approx(original.avg_doc_length)
-        assert restored.token_max_length == original.token_max_length
+        assert restored.dim == original.dim
+        assert restored.language == original.language
         assert restored.stopwords == original.stopwords
 
     def test_roundtrip_produces_same_vectors(self):

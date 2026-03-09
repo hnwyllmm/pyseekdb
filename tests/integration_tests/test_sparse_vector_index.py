@@ -10,6 +10,7 @@ Run with embedded mode:
 """
 
 import contextlib
+import importlib
 import time
 import uuid
 from typing import Any
@@ -21,17 +22,27 @@ from pyseekdb import (
     K,
     Schema,
     SparseVectorIndexConfig,
+    VectorIndexConfig,
 )
 from pyseekdb.client.sparse_embedding_function import (
     Documents,
     SparseEmbeddingFunction,
     SparseVector,
     SparseVectors,
+    register_sparse_embedding_function,
 )
+from pyseekdb.utils.embedding_functions.bm25_sparse_embedding_function import BM25SparseEmbeddingFunction
+from pyseekdb.utils.embedding_functions.huggingface_sparse_embedding_function import HuggingFaceSparseEmbeddingFunction
+
+
+def _bm25_available() -> bool:
+    return importlib.util.find_spec("bm25s") is not None
+
 
 # ── Fake sparse embedding function for deterministic testing ─────────
 
 
+@register_sparse_embedding_function
 class FakeSparseEF(SparseEmbeddingFunction):
     """
     Deterministic sparse embedding function for integration testing.
@@ -112,7 +123,26 @@ class TestCreateCollectionWithSparseIndex:
             collection = _create_sparse_collection(db_client, name)
             assert collection is not None
             assert collection.name == name
-            assert collection.has_sparse_vector_index is True
+            assert collection.sparse_vector_index_config is not None
+            assert collection.sparse_embedding_function is not None
+            print(f"   Created collection '{name}' with sparse index")
+        finally:
+            _cleanup_collection(db_client, name)
+
+    def test_create_collection_with_sparse_only(self, db_client):
+        name = _unique_name("create_sparse")
+        try:
+            schema = Schema(
+                sparse_vector_index=SparseVectorIndexConfig(
+                    embedding_function=FakeSparseEF(),
+                    source_key=K.DOCUMENT,
+                ),
+            )
+
+            collection = db_client.create_collection(name=name, schema=schema)
+            assert collection is not None
+            assert collection.name == name
+            assert collection.sparse_vector_index_config is not None
             assert collection.sparse_embedding_function is not None
             print(f"   Created collection '{name}' with sparse index")
         finally:
@@ -128,7 +158,7 @@ class TestCreateCollectionWithSparseIndex:
                 embedding_function=None,
             )
             assert collection is not None
-            assert collection.has_sparse_vector_index is False
+            assert collection.sparse_vector_index_config is None
             assert collection.sparse_embedding_function is None
             print(f"   Created collection '{name}' without sparse index")
         finally:
@@ -140,7 +170,7 @@ class TestCreateCollectionWithSparseIndex:
         try:
             collection = db_client.get_or_create_collection(name=name, schema=_make_sparse_schema())
             assert collection is not None
-            assert collection.has_sparse_vector_index is True
+            assert collection.sparse_vector_index_config is not None
             print("   get_or_create_collection with sparse: OK")
         finally:
             _cleanup_collection(db_client, name)
@@ -326,16 +356,18 @@ class TestCollectionUpsertWithSparse:
 class TestCollectionQueryWithSparse:
     """Test collection.query() with sparse vector index (query_key=K.SPARSE_EMBEDDING)."""
 
-    def _setup_with_data(self, db_client, name):
-        sparse_ef = FakeSparseEF()
+    def _setup_with_data(self, db_client, name, sparse_ef=None):
+        if sparse_ef is None:
+            sparse_ef = FakeSparseEF()
         schema = Schema(
-            vector_index=HNSWConfiguration(dimension=DIMENSION, distance="l2"),
+            vector_index=VectorIndexConfig(
+                hnsw=HNSWConfiguration(dimension=DIMENSION, distance="l2"), embedding_function=None
+            ),
             sparse_vector_index=SparseVectorIndexConfig(
                 embedding_function=sparse_ef,
                 source_key=K.DOCUMENT,
             ),
         )
-        schema.vector_index.embedding_function = None
         collection = db_client.create_collection(name=name, schema=schema)
 
         ids = [str(uuid.uuid4()) for _ in range(5)]
@@ -448,6 +480,43 @@ class TestCollectionQueryWithSparse:
         finally:
             _cleanup_collection(db_client, name)
 
+    @pytest.mark.skipif(not _bm25_available(), reason="bm25s not installed")
+    def test_sparse_query_with_bm25(self, db_client):
+        """Query using BM25 sparse vector."""
+        name = _unique_name("query_sparse_bm25")
+        try:
+            collection, _ids, _ = self._setup_with_data(db_client, name, sparse_ef=BM25SparseEmbeddingFunction())
+            results = collection.query(
+                query_texts=["machine learning"],
+                query_key=K.SPARSE_EMBEDDING,
+                n_results=3,
+            )
+            assert results is not None
+            assert "ids" in results
+            assert len(results["ids"]) == 1
+            assert len(results["ids"][0]) > 0
+            print(f"   Sparse BM25 query returned {len(results['ids'][0])} results: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
+    def test_sparse_query_with_splade(self, db_client):
+        """Query using SPLADE sparse vector."""
+        name = _unique_name("query_sparse_splade")
+        try:
+            collection, _ids, _ = self._setup_with_data(db_client, name, sparse_ef=HuggingFaceSparseEmbeddingFunction())
+            results = collection.query(
+                query_texts=["machine learning"],
+                query_key=K.SPARSE_EMBEDDING,
+                n_results=3,
+            )
+            assert results is not None
+            assert "ids" in results
+            assert len(results["ids"]) == 1
+            assert len(results["ids"][0]) > 0
+            print(f"   Sparse SPLADE query returned {len(results['ids'][0])} results: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
 
 class TestSparseWithMetadataSource:
     """Test sparse vector generation from metadata field instead of document."""
@@ -457,13 +526,14 @@ class TestSparseWithMetadataSource:
         name = _unique_name("sparse_meta_src")
         sparse_ef = FakeSparseEF()
         schema = Schema(
-            vector_index=HNSWConfiguration(dimension=DIMENSION, distance="l2"),
+            vector_index=VectorIndexConfig(
+                hnsw=HNSWConfiguration(dimension=DIMENSION, distance="l2"), embedding_function=None
+            ),
             sparse_vector_index=SparseVectorIndexConfig(
                 embedding_function=sparse_ef,
                 source_key="title",
             ),
         )
-        schema.vector_index.embedding_function = None
 
         try:
             collection = db_client.create_collection(name=name, schema=schema)
@@ -491,10 +561,13 @@ class TestSparseIndexSqlGeneration:
         name = _unique_name("sparse_opts")
         sparse_ef = FakeSparseEF()
         schema = Schema(
-            vector_index=HNSWConfiguration(dimension=DIMENSION, distance="l2"),
+            vector_index=VectorIndexConfig(
+                hnsw=HNSWConfiguration(dimension=DIMENSION, distance="l2"), embedding_function=None
+            ),
             sparse_vector_index=SparseVectorIndexConfig(
                 embedding_function=sparse_ef,
                 source_key=K.DOCUMENT,
+                type="sindi",
                 prune=True,
                 refine=True,
                 drop_ratio_build=0.1,
@@ -502,12 +575,11 @@ class TestSparseIndexSqlGeneration:
                 refine_k=4.0,
             ),
         )
-        schema.vector_index.embedding_function = None
 
         try:
             collection = db_client.create_collection(name=name, schema=schema)
             assert collection is not None
-            assert collection.has_sparse_vector_index is True
+            assert collection.sparse_vector_index_config is not None
 
             test_id = str(uuid.uuid4())
             collection.add(
@@ -518,6 +590,302 @@ class TestSparseIndexSqlGeneration:
             results = collection.get(ids=test_id)
             assert len(results["ids"]) == 1
             print("   Sparse index with prune/refine options: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
+
+class TestSparseCollectionDeleteOperations:
+    """Test delete operations on collections with sparse vector index."""
+
+    def _setup_with_data(self, db_client, name):
+        collection = _create_sparse_collection(db_client, name)
+        ids = [str(uuid.uuid4()) for _ in range(5)]
+        collection.add(
+            ids=ids,
+            embeddings=[[1.0, 2.0, 3.0], [2.0, 3.0, 4.0], [3.0, 4.0, 5.0], [4.0, 5.0, 6.0], [5.0, 6.0, 7.0]],
+            documents=[
+                "machine learning algorithms",
+                "python programming guide",
+                "deep learning neural networks",
+                "data science with python",
+                "natural language processing",
+            ],
+            metadatas=[
+                {"category": "AI", "priority": 1},
+                {"category": "Programming", "priority": 2},
+                {"category": "AI", "priority": 3},
+                {"category": "Data Science", "priority": 4},
+                {"category": "AI", "priority": 5},
+            ],
+        )
+        return collection, ids
+
+    def test_delete_by_id(self, db_client):
+        """Delete a single item by ID from a sparse collection."""
+        name = _unique_name("del_id")
+        try:
+            collection, ids = self._setup_with_data(db_client, name)
+            assert collection.count() == 5
+
+            collection.delete(ids=ids[0])
+            assert collection.count() == 4
+
+            results = collection.get(ids=ids[0])
+            assert len(results["ids"]) == 0
+            print("   Delete by ID on sparse collection: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
+    def test_delete_multiple_by_ids(self, db_client):
+        """Delete multiple items by IDs from a sparse collection."""
+        name = _unique_name("del_multi")
+        try:
+            collection, ids = self._setup_with_data(db_client, name)
+            collection.delete(ids=ids[:3])
+            assert collection.count() == 2
+
+            remaining = collection.get(ids=ids[3:])
+            assert len(remaining["ids"]) == 2
+            print("   Delete multiple by IDs on sparse collection: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
+    def test_delete_by_metadata_filter(self, db_client):
+        """Delete items matching a metadata filter on a sparse collection."""
+        name = _unique_name("del_meta")
+        try:
+            collection, _ids = self._setup_with_data(db_client, name)
+            collection.delete(where={"category": {"$eq": "AI"}})
+
+            remaining = collection.get(limit=100)
+            for meta in remaining["metadatas"]:
+                assert meta["category"] != "AI"
+            print("   Delete by metadata filter on sparse collection: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
+    def test_delete_by_document_filter(self, db_client):
+        """Delete items matching a document filter on a sparse collection."""
+        name = _unique_name("del_doc")
+        try:
+            collection, _ids = self._setup_with_data(db_client, name)
+            original_count = collection.count()
+
+            collection.delete(where_document={"$contains": "python"})
+
+            new_count = collection.count()
+            assert new_count < original_count
+            results = collection.get(where_document={"$contains": "python"})
+            assert len(results["ids"]) == 0
+            print("   Delete by document filter on sparse collection: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
+
+class TestSparseCollectionCountAndPeek:
+    """Test count and peek operations on collections with sparse vector index."""
+
+    def test_count_empty_collection(self, db_client):
+        """Newly created sparse collection has count zero."""
+        name = _unique_name("count_empty")
+        try:
+            collection = _create_sparse_collection(db_client, name)
+            assert collection.count() == 0
+            print("   Empty sparse collection count: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
+    def test_count_after_add(self, db_client):
+        """Count reflects the number of items added."""
+        name = _unique_name("count_add")
+        try:
+            collection = _create_sparse_collection(db_client, name)
+            ids = [str(uuid.uuid4()) for _ in range(4)]
+            collection.add(
+                ids=ids,
+                embeddings=[[1.0, 2.0, 3.0], [2.0, 3.0, 4.0], [3.0, 4.0, 5.0], [4.0, 5.0, 6.0]],
+                documents=[
+                    "first document",
+                    "second document",
+                    "third document",
+                    "fourth document",
+                ],
+            )
+            assert collection.count() == 4
+            print("   Sparse collection count after add: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
+    def test_peek(self, db_client):
+        """Peek returns a preview of items in a sparse collection."""
+        name = _unique_name("peek")
+        try:
+            collection = _create_sparse_collection(db_client, name)
+            ids = [str(uuid.uuid4()) for _ in range(3)]
+            collection.add(
+                ids=ids,
+                embeddings=[[1.0, 2.0, 3.0], [2.0, 3.0, 4.0], [3.0, 4.0, 5.0]],
+                documents=["doc one", "doc two", "doc three"],
+            )
+            peeked = collection.peek(limit=2)
+            assert "ids" in peeked
+            assert len(peeked["ids"]) == 2
+            print("   Sparse collection peek: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
+
+class TestSparseCollectionGetWithFilters:
+    """Test get operations with various filters on sparse collections."""
+
+    def _setup(self, db_client, name):
+        collection = _create_sparse_collection(db_client, name)
+        ids = [str(uuid.uuid4()) for _ in range(4)]
+        collection.add(
+            ids=ids,
+            embeddings=[[1.0, 2.0, 3.0], [2.0, 3.0, 4.0], [3.0, 4.0, 5.0], [4.0, 5.0, 6.0]],
+            documents=[
+                "machine learning tutorial",
+                "python web development",
+                "deep learning frameworks",
+                "database optimization guide",
+            ],
+            metadatas=[
+                {"topic": "AI", "level": 1},
+                {"topic": "Web", "level": 2},
+                {"topic": "AI", "level": 3},
+                {"topic": "Database", "level": 2},
+            ],
+        )
+        return collection, ids
+
+    def test_get_by_metadata_where(self, db_client):
+        """Get items by metadata filter on a sparse collection."""
+        name = _unique_name("get_where")
+        try:
+            collection, _ids = self._setup(db_client, name)
+            results = collection.get(where={"topic": {"$eq": "AI"}})
+            assert len(results["ids"]) == 2
+            for meta in results["metadatas"]:
+                assert meta["topic"] == "AI"
+            print("   Get by metadata where on sparse collection: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
+    def test_get_by_document_filter(self, db_client):
+        """Get items by document content filter on a sparse collection."""
+        name = _unique_name("get_doc")
+        try:
+            collection, _ids = self._setup(db_client, name)
+            results = collection.get(where_document={"$contains": "learning"})
+            assert len(results["ids"]) == 2
+            for doc in results["documents"]:
+                assert "learning" in doc
+            print("   Get by document filter on sparse collection: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
+    def test_get_with_limit(self, db_client):
+        """Get with limit on a sparse collection."""
+        name = _unique_name("get_limit")
+        try:
+            collection, _ids = self._setup(db_client, name)
+            results = collection.get(limit=2)
+            assert len(results["ids"]) == 2
+            print("   Get with limit on sparse collection: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
+
+class TestSparseSchemaChaining:
+    """Test Schema.create_index chaining with sparse vector config."""
+
+    def test_create_index_chaining(self, db_client):
+        """Build schema via create_index method chaining."""
+        name = _unique_name("chain")
+        sparse_ef = FakeSparseEF()
+        schema = (
+            Schema()
+            .create_index(HNSWConfiguration(dimension=DIMENSION, distance="l2"))
+            .create_index(
+                SparseVectorIndexConfig(
+                    embedding_function=sparse_ef,
+                    source_key=K.DOCUMENT,
+                )
+            )
+        )
+        schema.vector_index.embedding_function = None
+
+        try:
+            collection = db_client.create_collection(name=name, schema=schema)
+            assert collection is not None
+            assert collection.sparse_vector_index_config is not None
+            assert collection.sparse_embedding_function is not None
+
+            test_id = str(uuid.uuid4())
+            collection.add(
+                ids=test_id,
+                embeddings=[1.0, 2.0, 3.0],
+                documents="chaining test document",
+            )
+            results = collection.get(ids=test_id)
+            assert len(results["ids"]) == 1
+            assert results["documents"][0] == "chaining test document"
+            print("   Schema.create_index chaining with sparse: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
+
+class TestSparseCollectionReopen:
+    """Test that sparse config survives collection re-open via get_collection."""
+
+    def test_get_collection_preserves_sparse(self, db_client):
+        """After creating a sparse collection, get_collection should preserve sparse config."""
+        name = _unique_name("reopen")
+        try:
+            collection = _create_sparse_collection(db_client, name)
+            assert collection.sparse_vector_index_config is not None
+
+            test_id = str(uuid.uuid4())
+            collection.add(
+                ids=test_id,
+                embeddings=[1.0, 2.0, 3.0],
+                documents="document before reopen",
+            )
+
+            reopened = db_client.get_collection(name)
+            assert reopened is not None
+            assert reopened.name == name
+
+            results = reopened.get(ids=test_id)
+            assert len(results["ids"]) == 1
+            assert results["documents"][0] == "document before reopen"
+            print("   get_collection preserves sparse data: OK")
+        finally:
+            _cleanup_collection(db_client, name)
+
+    def test_get_or_create_existing_sparse_collection(self, db_client):
+        """get_or_create_collection on an existing sparse collection returns it."""
+        name = _unique_name("reopen_goc")
+        try:
+            _create_sparse_collection(db_client, name)
+
+            reopened = db_client.get_or_create_collection(
+                name=name,
+                schema=_make_sparse_schema(),
+            )
+            assert reopened is not None
+            assert reopened.sparse_vector_index_config is not None
+
+            test_id = str(uuid.uuid4())
+            reopened.add(
+                ids=test_id,
+                embeddings=[1.0, 2.0, 3.0],
+                documents="after reopen via get_or_create",
+            )
+            results = reopened.get(ids=test_id)
+            assert len(results["ids"]) == 1
+            print("   get_or_create on existing sparse collection: OK")
         finally:
             _cleanup_collection(db_client, name)
 

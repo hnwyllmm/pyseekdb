@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from .database import Database
+from .types import _NOT_PROVIDED
 
 if TYPE_CHECKING:
     from .client_base import (
@@ -18,21 +19,7 @@ if TYPE_CHECKING:
     )
     from .collection import Collection
 
-# Delay import to avoid circular import
-# We'll import these lazily in the functions that need them
-# For now, create a placeholder that we can detect and replace
-_PLACEHOLDER = object()  # Unique placeholder object
-
-
-def _get_not_provided():
-    """Get the real _NOT_PROVIDED from client_base"""
-    from .client_base import _NOT_PROVIDED
-
-    return _NOT_PROVIDED
-
-
-# Use placeholder for default parameter - will be replaced in function
-_NOT_PROVIDED = _PLACEHOLDER
+SchemaParam = Any  # Type hint placeholder
 ConfigurationParam = Any  # Type hint placeholder
 EmbeddingFunctionParam = Any  # Type hint placeholder
 
@@ -177,30 +164,22 @@ class _ClientProxy:
     def create_collection(
         self,
         name: str,
-        configuration: ConfigurationParam = _PLACEHOLDER,
-        embedding_function: EmbeddingFunctionParam = _PLACEHOLDER,
+        schema: SchemaParam = None,
+        configuration: ConfigurationParam = _NOT_PROVIDED,
+        embedding_function: EmbeddingFunctionParam = _NOT_PROVIDED,
         **kwargs,
     ) -> "Collection":
         """Proxy to server implementation - collection operations only"""
-        # Replace placeholder with real _NOT_PROVIDED if needed
-        real_not_provided = _get_not_provided()
-        if configuration is _PLACEHOLDER:
-            configuration = real_not_provided
-        if embedding_function is _PLACEHOLDER:
-            embedding_function = real_not_provided
         return self._server.create_collection(
             name=name,
+            schema=schema,
             configuration=configuration,
             embedding_function=embedding_function,
             **kwargs,
         )
 
-    def get_collection(self, name: str, embedding_function: EmbeddingFunctionParam = _PLACEHOLDER) -> "Collection":
+    def get_collection(self, name: str, embedding_function: EmbeddingFunctionParam = _NOT_PROVIDED) -> "Collection":
         """Proxy to server implementation - collection operations only"""
-        # Replace placeholder with real _NOT_PROVIDED if needed
-        real_not_provided = _get_not_provided()
-        if embedding_function is _PLACEHOLDER:
-            embedding_function = real_not_provided
         return self._server.get_collection(name=name, embedding_function=embedding_function)
 
     def delete_collection(self, name: str) -> None:
@@ -218,19 +197,15 @@ class _ClientProxy:
     def get_or_create_collection(
         self,
         name: str,
-        configuration: ConfigurationParam = _PLACEHOLDER,
-        embedding_function: EmbeddingFunctionParam = _PLACEHOLDER,
+        schema: SchemaParam = None,
+        configuration: ConfigurationParam = _NOT_PROVIDED,
+        embedding_function: EmbeddingFunctionParam = _NOT_PROVIDED,
         **kwargs,
     ) -> "Collection":
         """Proxy to server implementation - collection operations only"""
-        # Replace placeholder with real _NOT_PROVIDED if needed
-        real_not_provided = _get_not_provided()
-        if configuration is _PLACEHOLDER:
-            configuration = real_not_provided
-        if embedding_function is _PLACEHOLDER:
-            embedding_function = real_not_provided
         return self._server.get_or_create_collection(
             name=name,
+            schema=schema,
             configuration=configuration,
             embedding_function=embedding_function,
             **kwargs,

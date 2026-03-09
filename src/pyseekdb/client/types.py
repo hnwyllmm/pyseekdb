@@ -1,3 +1,13 @@
+# Sentinel object to distinguish between "parameter not provided" and "explicitly set to None"
+class _NotProvided:
+    """Sentinel object to indicate a parameter was not provided"""
+
+    pass
+
+
+_NOT_PROVIDED = _NotProvided()
+
+
 class FieldKey:
     """
     Key constants for referencing collection fields.

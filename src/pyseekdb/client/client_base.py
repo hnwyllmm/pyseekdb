@@ -60,15 +60,7 @@ _MAX_COLLECTION_NAME_LENGTH = 512
 
 logger = logging.getLogger(__name__)
 
-
-# Sentinel object to distinguish between "parameter not provided" and "explicitly set to None"
-class _NotProvided:
-    """Sentinel object to indicate a parameter was not provided"""
-
-    pass
-
-
-_NOT_PROVIDED = _NotProvided()
+from .types import _NOT_PROVIDED, _NotProvided  # noqa: E402, F401
 
 
 def _extract_hnsw_config(config: ConfigurationParam) -> HNSWConfiguration | None:

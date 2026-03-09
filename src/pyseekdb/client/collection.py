@@ -112,11 +112,6 @@ class Collection:
             return self._sparse_vector_index_config.embedding_function
         return None
 
-    @property
-    def has_sparse_vector_index(self) -> bool:
-        """Check if this collection has a sparse vector index."""
-        return self._sparse_vector_index_config is not None
-
     def __repr__(self) -> str:
         return f"Collection(name='{self._name}', dimension={self._dimension}, client={self._client.mode})"
 
