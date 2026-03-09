@@ -158,6 +158,12 @@ class BM25SparseEmbeddingFunction(SparseEmbeddingFunction):
             raise ValueError(
                 "The bm25s package is not installed. Please install it with `pip install bm25s[full]`"
             ) from exc
+        if k < 0:
+            raise ValueError("k must be greater than or equal to 0")
+        if float(avg_doc_length) <= 0:
+            raise ValueError("avg_doc_length must be greater than 0")
+        if int(dim) <= 0:
+            raise ValueError("dim must be greater than 0")
 
         self.k = float(k)
         self.b = float(b)

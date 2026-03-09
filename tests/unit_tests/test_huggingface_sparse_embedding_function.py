@@ -194,7 +194,7 @@ class TestHuggingFaceSparseEFCall:
         mock_model.encode_query.return_value = self._make_dense_output([{5: 0.9}])
 
         ef = HuggingFaceSparseEmbeddingFunction(task="document")
-        result = ef.embed_query(["query text"])
+        result = ef(["query text"])
 
         assert len(result) == 1
         mock_model.encode_query.assert_called_once()

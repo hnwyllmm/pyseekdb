@@ -104,7 +104,7 @@ def _rerank_score(
     sparse_distances = sparse_results["distances"][0] if sparse_ids else []
 
     dense_norm = _normalize_scores(dense_distances, higher_is_better=False)
-    sparse_norm = _normalize_scores(sparse_distances, higher_is_better=False)
+    sparse_norm = _normalize_scores(sparse_distances, higher_is_better=True)
 
     scores: dict[str, float] = {}
     for i, doc_id in enumerate(dense_ids):

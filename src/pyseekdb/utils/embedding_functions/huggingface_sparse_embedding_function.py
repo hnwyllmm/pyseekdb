@@ -111,29 +111,6 @@ class HuggingFaceSparseEmbeddingFunction(SparseEmbeddingFunction):
 
         return self._convert_to_sparse_vectors(embeddings)
 
-    def embed_query(self, documents: Documents) -> SparseVectors:
-        """
-        Encode queries into sparse vectors using ``encode_query``.
-
-        Regardless of the ``task`` setting, this method always uses
-        the query encoding path, which is typically preferred at search time
-        for asymmetric models (e.g., SPLADE).
-
-        Args:
-            documents: A single string or list of strings.
-
-        Returns:
-            List of SparseVector instances, one per input query.
-        """
-        from sentence_transformers import SparseEncoder
-
-        if isinstance(documents, str):
-            documents = [documents]
-
-        model = cast(SparseEncoder, self._model)
-        embeddings = model.encode_query(list(documents))
-        return self._convert_to_sparse_vectors(embeddings)
-
     @staticmethod
     def _convert_to_sparse_vectors(embeddings: Any) -> SparseVectors:
         sparse_vectors: SparseVectors = []
