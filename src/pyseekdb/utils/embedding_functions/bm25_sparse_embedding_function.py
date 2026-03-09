@@ -129,7 +129,7 @@ class BM25SparseEmbeddingFunction(SparseEmbeddingFunction):
         dim: Maximum number of sparse-vector dimensions.  Hash values are reduced
             via ``hash % dim`` so every index falls in ``[0, dim)``.  Must not
             exceed the database engine's limit (seekdb supports up to 500 000).
-            Default 500 000.
+            Default 250 000.
         language: Language for stopwords and stemming. Default ``"english"``.
             Supported values depend on bm25s (e.g. ``"english"``, ``"german"``,
             ``"french"``, etc.) and PyStemmer for stemming.

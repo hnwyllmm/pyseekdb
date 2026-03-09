@@ -1460,6 +1460,10 @@ dev = [
     { name = "sphinx-multiversion" },
     { name = "sphinx-rtd-theme" },
 ]
+huggingface-tests = [
+    { name = "huggingface-hub" },
+    { name = "sentence-transformers" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1484,6 +1488,10 @@ dev = [
     { name = "sphinx", specifier = ">=8.2.3" },
     { name = "sphinx-multiversion", specifier = ">=0.2.4" },
     { name = "sphinx-rtd-theme", specifier = ">=3.0.2" },
+]
+huggingface-tests = [
+    { name = "huggingface-hub", specifier = ">=0.26" },
+    { name = "sentence-transformers", specifier = ">=5.0" },
 ]
 
 [[package]]

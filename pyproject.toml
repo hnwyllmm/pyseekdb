@@ -37,6 +37,12 @@ dev = [
     "prek>=0.2.17",
     "ruff>=0.11.5",
 ]
+# For unit tests that need SparseEncoder (test_huggingface_sparse_embedding_function.py).
+# Install with: uv sync --group dev --group huggingface-tests
+huggingface-tests = [
+    "sentence-transformers>=5.0",
+    "huggingface-hub>=0.26",
+]
 
 [tool.uv.workspace]
 members = ["demo/rag"]

@@ -6,12 +6,18 @@ and the sparse-vector conversion logic.
 
 The SparseEncoder model loading is mocked to avoid downloading large models.
 
-To run:
-    pytest tests/unit_tests/test_huggingface_sparse_embedding_function.py -v
+To run these tests, install the optional dependency group (sentence-transformers
+and a compatible huggingface-hub):
+
+    uv sync --group dev --group huggingface-tests
+
+Then:
+
+    uv run pytest tests/unit_tests/test_huggingface_sparse_embedding_function.py -v
 """
 
 import importlib.util
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -105,6 +111,15 @@ class TestHuggingFaceSparseEFInit:
 
         HuggingFaceSparseEmbeddingFunction(model_name="model-a")
         HuggingFaceSparseEmbeddingFunction(model_name="model-b")
+
+
+@pytest.fixture
+def mock_sparse_encoder():
+    """Patch SparseEncoder so tests get a mock model; yields (MockEncoder, mock_instance)."""
+    with patch("sentence_transformers.SparseEncoder") as MockEncoder:
+        mock_instance = MagicMock()
+        MockEncoder.return_value = mock_instance
+        yield (MockEncoder, mock_instance)
 
 
 @pytest.mark.skipif(
