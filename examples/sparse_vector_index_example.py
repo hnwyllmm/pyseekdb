@@ -6,7 +6,7 @@ from typing import Any, Literal
 from pyseekdb import Client, HNSWConfiguration, K, Schema, SparseVectorIndexConfig
 from pyseekdb.utils.embedding_functions import BM25SparseEmbeddingFunction
 
-# 1. 初始化客户端 (Embedded 模式, 会在当前目录生成 seekdb.db)
+# 1. Initialize client (Embedded mode; creates seekdb.db in the current directory)
 client = Client()
 
 # Clean up stale collections from previous runs
@@ -14,8 +14,7 @@ for name in ["demo_sparse_collection", "hybrid_demo"]:
     with contextlib.suppress(Exception):
         client.delete_collection(name)
 
-# 2. 定义 Schema
-# 配置 BM25 稀疏向量索引, 使用文档内容 (K.DOCUMENT) 作为来源
+# 2. Define schema: BM25 sparse vector index using document content (K.DOCUMENT) as source
 sparse_config = SparseVectorIndexConfig(
     embedding_function=BM25SparseEmbeddingFunction(k=1.2, b=0.75),
     source_key=K.DOCUMENT,
@@ -24,7 +23,7 @@ sparse_config = SparseVectorIndexConfig(
 
 schema = Schema(sparse_vector_index=sparse_config)
 
-# 3. 创建集合
+# 3. Create collection
 collection_name = "demo_sparse_collection"
 collection = client.create_collection(name=collection_name, schema=schema)
 
@@ -39,7 +38,7 @@ collection.add(
     ],
 )
 
-# 5. 执行稀疏向量检索
+# 5. Run sparse vector search
 results = collection.query(
     query_texts=["machine learning"],
     query_key=K.SPARSE_EMBEDDING,
