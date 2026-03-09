@@ -39,6 +39,10 @@ def _bm25_available() -> bool:
     return importlib.util.find_spec("bm25s") is not None
 
 
+def _splade_available() -> bool:
+    return importlib.util.find_spec("sentence_transformers") is not None
+
+
 # ── Fake sparse embedding function for deterministic testing ─────────
 
 
@@ -499,6 +503,7 @@ class TestCollectionQueryWithSparse:
         finally:
             _cleanup_collection(db_client, name)
 
+    @pytest.mark.skipif(not _splade_available(), reason="sentence_transformers not installed")
     def test_sparse_query_with_splade(self, db_client):
         """Query using SPLADE sparse vector."""
         name = _unique_name("query_sparse_splade")
