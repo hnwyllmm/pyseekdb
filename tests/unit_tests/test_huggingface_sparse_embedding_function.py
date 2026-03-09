@@ -78,12 +78,12 @@ class TestHuggingFaceSparseEFInit:
         )
 
         ef = HuggingFaceSparseEmbeddingFunction(
-            model_name="naver/splade-v3",
+            model_name="naver/splade-cocondenser-ensembledistil",
             device="cuda",
             task="query",
             trust_remote_code=True,
         )
-        assert ef.model_name == "naver/splade-v3"
+        assert ef.model_name == "naver/splade-cocondenser-ensembledistil"
         assert ef.device == "cuda"
         assert ef.task == "query"
         assert ef.kwargs == {"trust_remote_code": True}
@@ -240,14 +240,14 @@ class TestHuggingFaceSparseEFPersistence:
         )
 
         ef = HuggingFaceSparseEmbeddingFunction(
-            model_name="naver/splade-v3",
+            model_name="naver/splade-cocondenser-ensembledistil",
             device="cuda:0",
             task="query",
             trust_remote_code=True,
         )
         config = ef.get_config()
 
-        assert config["model_name"] == "naver/splade-v3"
+        assert config["model_name"] == "naver/splade-cocondenser-ensembledistil"
         assert config["device"] == "cuda:0"
         assert config["task"] == "query"
         assert config["kwargs"] == {"trust_remote_code": True}
@@ -276,14 +276,14 @@ class TestHuggingFaceSparseEFPersistence:
         )
 
         config = {
-            "model_name": "naver/splade-v3",
+            "model_name": "naver/splade-cocondenser-ensembledistil",
             "device": "cuda",
             "task": "query",
             "kwargs": {"trust_remote_code": True},
         }
         ef = HuggingFaceSparseEmbeddingFunction.build_from_config(config)
 
-        assert ef.model_name == "naver/splade-v3"
+        assert ef.model_name == "naver/splade-cocondenser-ensembledistil"
         assert ef.task == "query"
         assert ef.kwargs == {"trust_remote_code": True}
 
@@ -314,7 +314,7 @@ class TestHuggingFaceSparseEFPersistence:
         )
 
         original = HuggingFaceSparseEmbeddingFunction(
-            model_name="naver/splade-v3",
+            model_name="naver/splade-cocondenser-ensembledistil",
             device="cpu",
             task="query",
             trust_remote_code=True,

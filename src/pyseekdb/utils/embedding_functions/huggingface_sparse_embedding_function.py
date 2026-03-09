@@ -5,7 +5,7 @@ Supports SPLADE and other sparse encoder models available on HuggingFace Hub.
 Common models include:
   - prithivida/Splade_PP_en_v1
   - naver/splade-cocondenser-ensembledistil
-  - naver/splade-v3
+  - naver/splade-cocondenser-selfdistil
 
 Example:
     >>> from pyseekdb.utils.embedding_functions import HuggingFaceSparseEmbeddingFunction
