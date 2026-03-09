@@ -46,7 +46,6 @@ def _splade_available() -> bool:
 # ── Fake sparse embedding function for deterministic testing ─────────
 
 
-@register_sparse_embedding_function
 class FakeSparseEF(SparseEmbeddingFunction):
     """
     Deterministic sparse embedding function for integration testing.
@@ -96,6 +95,7 @@ def _cleanup_collection(client, name: str):
 
 def _make_sparse_schema():
     """Create a Schema with HNSW(dim=3) + sparse index, no dense embedding function."""
+    register_sparse_embedding_function(FakeSparseEF)
     schema = Schema(
         vector_index=HNSWConfiguration(dimension=DIMENSION, distance="l2"),
         sparse_vector_index=SparseVectorIndexConfig(
@@ -865,6 +865,8 @@ class TestSparseCollectionReopen:
             results = reopened.get(ids=test_id)
             assert len(results["ids"]) == 1
             assert results["documents"][0] == "document before reopen"
+            assert isinstance(reopened.sparse_embedding_function, FakeSparseEF)
+            assert reopened.sparse_vector_index_config is not None
             print("   get_collection preserves sparse data: OK")
         finally:
             _cleanup_collection(db_client, name)
