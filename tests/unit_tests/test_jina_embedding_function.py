@@ -311,7 +311,7 @@ class TestJinaEmbeddingFunctionPersistence:
             "client_kwargs": "not-a-dict",
         }
 
-        with pytest.raises(ValueError, match="kwargs must be a dictionary"):
+        with pytest.raises(TypeError, match="kwargs must be a dictionary"):
             JinaEmbeddingFunction.build_from_config(config)
 
     def test_persistence_roundtrip(self):

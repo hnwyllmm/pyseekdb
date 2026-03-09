@@ -241,14 +241,14 @@ class TestHuggingFaceSparseEFPersistence:
 
         ef = HuggingFaceSparseEmbeddingFunction(
             model_name="naver/splade-cocondenser-ensembledistil",
-            device="cuda:0",
+            device="cpu",
             task="query",
             trust_remote_code=True,
         )
         config = ef.get_config()
 
         assert config["model_name"] == "naver/splade-cocondenser-ensembledistil"
-        assert config["device"] == "cuda:0"
+        assert config["device"] == "cpu"
         assert config["task"] == "query"
         assert config["kwargs"] == {"trust_remote_code": True}
 
@@ -277,7 +277,7 @@ class TestHuggingFaceSparseEFPersistence:
 
         config = {
             "model_name": "naver/splade-cocondenser-ensembledistil",
-            "device": "cuda",
+            "device": "cpu",
             "task": "query",
             "kwargs": {"trust_remote_code": True},
         }
@@ -292,10 +292,10 @@ class TestHuggingFaceSparseEFPersistence:
             HuggingFaceSparseEmbeddingFunction,
         )
 
-        config = {"model_name": "some-model"}
+        config = {"model_name": "naver/splade-cocondenser-ensembledistil"}
         ef = HuggingFaceSparseEmbeddingFunction.build_from_config(config)
 
-        assert ef.model_name == "some-model"
+        assert ef.model_name == "naver/splade-cocondenser-ensembledistil"
         assert ef.device == "cpu"
         assert ef.task == "document"
         assert ef.kwargs == {}
