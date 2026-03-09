@@ -37,9 +37,14 @@ dev = [
     "prek>=0.2.17",
     "ruff>=0.11.5",
 ]
-# For unit tests that need SparseEncoder (test_huggingface_sparse_embedding_function.py).
-# Install with: uv sync --group dev --group huggingface-tests
-huggingface-tests = [
+
+# Optional deps for unit tests. CI uses `uv run --no-sync pytest` so pip-installed deps persist.
+unit-tests = [
+    "bm25s[full]",
+    "openai",
+    "boto3",
+    "litellm",
+    "voyageai",
     "sentence-transformers>=5.0",
     "huggingface-hub>=0.26",
 ]
