@@ -12,6 +12,7 @@ To run this test manually:
 
 import importlib.util
 import os
+import sys
 
 import pytest
 
@@ -28,7 +29,7 @@ def is_voyageai_available() -> bool:
     Returns:
         True if voyageai is available, False otherwise.
     """
-    return importlib.util.find_spec("voyageai") is not None
+    return importlib.util.find_spec("voyageai") is not None and sys.version_info < (3, 14)
 
 
 # Skip this test by default - it requires external API access and API keys
