@@ -1,6 +1,6 @@
 [project]
 name = "pyseekdb"
-version = "1.4.0"
+version = "1.4.0.post1"
 description = "A unified Python client for seekdb that supports embedded, server, and OceanBase."
 readme = "README.md"
 license = { text = "Apache-2.0" }
